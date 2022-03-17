@@ -186,7 +186,7 @@ public class JwtTest {
         System.out.println(header);
     }
 
-    //生成jwt时使用签名算法生成签名部分----基于HS256签名算法
+    // 生成jwt时使用签名算法生成签名部分----基于HS256签名算法
     @Test
     public void test2(){
         //添加构成JWT的参数
@@ -292,6 +292,88 @@ public class JwtTest {
 }
 ~~~
 
+
+
+### 3, RS256非对称加密
+
+RS256 (采用SHA-256 的 RSA 签名) 是一种非对称加密算法, 它使用公共/私钥对: JWT的提供方采用私钥生成签名, JWT 的使用方获取公钥以验证签名。
+
+#### 3.1.1 生成公私钥
+
+>   把文件放在resource目录下。
+
+```java
+public static void main(String[] args) throws NoSuchAlgorithmException, IOException {
+        // 生成一对公钥和私钥
+        // 自定义 随机密码,  请修改这里
+        String password = "pwd";
+
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        SecureRandom secureRandom = new SecureRandom(password.getBytes());
+        keyPairGenerator.initialize(1024, secureRandom);
+        KeyPair keyPair = keyPairGenerator.genKeyPair();
+
+        byte[] publicKeyBytes = keyPair.getPublic().getEncoded();
+        byte[] privateKeyBytes = keyPair.getPrivate().getEncoded();
+        IOUtils.write(publicKeyBytes, new FileOutputStream("d:\\pub.key"));
+        IOUtils.write(privateKeyBytes, new FileOutputStream("d:\\pri.key"));
+    }
+```
+
+
+
+### 3.1.2 获取公私钥
+
+```java
+//获取公钥
+    public static PublicKey getPubKey() throws Exception{
+        InputStream resourceAsStream =
+            JwtDemo.class.getClassLoader().getResourceAsStream("pub.key");
+        DataInputStream dis = new DataInputStream(resourceAsStream);
+        byte[] keyBytes = new byte[resourceAsStream.available()];
+        dis.readFully(keyBytes);
+        X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        return kf.generatePublic(spec);
+    }
+
+    //获取私钥
+    public static PrivateKey getPriKey() throws Exception{
+        InputStream resourceAsStream =
+            JwtDemo.class.getClassLoader().getResourceAsStream("pri.key");
+        DataInputStream dis = new DataInputStream(resourceAsStream);
+        byte[] keyBytes = new byte[resourceAsStream.available()];
+        dis.readFully(keyBytes);
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(keyBytes);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        return kf.generatePrivate(spec);
+    }
+```
+
+
+
+**案例**
+
+```java
+public static void main(String[] args) throws Exception {
+        HashMap<String, Object> HEADER = new HashMap<>(2);
+        HEADER.put("alg", SignatureAlgorithm.HS256.getValue());
+        HEADER.put("typ", "JWT");
+
+        String token = Jwts.builder()
+            .setHeader(HEADER)
+            .claim("name", "megumi")
+            .signWith(SignatureAlgorithm.RS256, getPriKey())
+            .compact();
+        System.out.println(token);
+
+        Object body = Jwts.parser().setSigningKey(getPubKey()).parse(token).getBody();
+        System.out.println(body);
+    }
+```
+
+
+
 ### 3， jwt模块
 
 ​	底层是基于jjwt进行jwt令牌的生成和解析的。为了方便使用，模块中封装了两个工具类：
@@ -299,7 +381,6 @@ public class JwtTest {
 *   JwtTokenServerUtils主要是提供给权限服务的，类中包含生成jwt和解析jwt两个方法
 
 *   JwtTokenClientUtils主要是提供给网关服务的，类中只有一个解析jwt的方法
-
 
 
 
