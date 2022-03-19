@@ -228,8 +228,11 @@ public class HelloJob implements Job {
 > @PersistJobDataAfterExecution
 >
 > 该Job是有状态，每次调用不会创建新的对象
+>
+> **补充：**@DisallowConcurrentExecution禁止并发执行
 
 ```java
+@DisallowConcurrentExecution
 @PersistJobDataAfterExecution
 public class HelloJob implements Job {
 
@@ -836,5 +839,261 @@ public interface SchedulerListener {
     void schedulingDataCleared();
 }
 
+```
+
+# spring boot整合quartz
+
+## 1，quartz集群搭建
+
+>   quartz本身不能感知其他集群的运行情况，需要通过各节点写入数据库来反馈运行情况（集群间不通信），数据库记录了集群的信息 。
+>
+>   在quartz官网中下载sql脚本
+>
+>   `quartz-2.3.0-SNAPSHOT\src\org\quartz\impl\jdbcjobstore`
+>
+>   中的tables_mysql.sql和tables_mysql_innodb.sql其实引擎是一样的。
+>
+>   **ps：**表的名字可以改，但是只能改前缀
+
+### 1.1 quartz.properties
+
+```properties
+#============================================================================
+# Configure Main Scheduler Properties  
+#============================================================================
+
+# 调度标识，集群中每个实例都必须使用相同的名称，但是id不一样
+org.quartz.scheduler.instanceName: TestScheduler
+# id设值为自动获取，每个必须不同
+org.quartz.scheduler.instanceId: AUTO
+
+org.quartz.scheduler.rmi.export: false
+org.quartz.scheduler.rmi.proxy: false
+org.quartz.scheduler.wrapJobExecutionInUserTransaction: false
+
+#============================================================================
+# Configure ThreadPool  
+#============================================================================
+
+# 线程池的实现类（一般使用SimpleThreadPool）
+org.quartz.threadPool.class: org.quartz.simpl.SimpleThreadPool
+# 线程数，一般设值为1-100
+org.quartz.threadPool.threadCount: 10
+# 线程优先级
+org.quartz.threadPool.threadPriority: 5
+org.quartz.threadPool.threadsInheritContextClassLoaderOfInitializingThread: true
+
+#============================================================================
+# Configure JobStore  
+#============================================================================
+
+# 表的前缀
+org.quartz.jobStore.tablePrefix: QRTZ_
+# 是否加入集群
+org.quartz.jobStore.isClustered: true
+# 调用实例失效的检查实际间隔 ms(集群探测时间，节点是否存活)
+org.quartz.jobStore.clusterCheckinInterval: 5000
+# 事务托管jdbc
+org.quartz.jobStore.txIsolationLevelReadCommitted: true
+
+org.quartz.jobStore.misfireThreshold: 60000
+
+# 数据保存方式为数据库持久化
+org.quartz.jobStore.class: org.quartz.impl.jdbcjobstore.JobStoreTX
+# 数据库代理类，以下满足大部分数据库
+org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
+
+
+#============================================================================
+# Configure Plugins 以下不需要
+#============================================================================
+
+org.quartz.plugin.triggHistory.class: org.quartz.plugins.history.LoggingJobHistoryPlugin
+
+org.quartz.plugin.jobInitializer.class: org.quartz.plugins.xml.XMLSchedulingDataProcessorPlugin
+org.quartz.plugin.jobInitializer.fileNames: quartz_data.xml
+org.quartz.plugin.jobInitializer.failOnFileNotFound: true
+org.quartz.plugin.jobInitializer.scanInterval: 120
+org.quartz.plugin.jobInitializer.wrapInUserTransaction: false
+```
+
+
+
+### 1.2 整合
+
+quartz的调度器是可以一样的，用于中保存一个就可以，它可以去调度各个任务。
+
+#### 1.2.1 依赖
+
+```xml
+<!--spring boot集成quartz-->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-quartz</artifactId>
+</dependency>
+```
+
+#### 1.2.2 代码实现
+
+**1，任务类JobDetail**
+
+>   原生的jobDetail需要 extends Job类。
+>
+>   spring整合的job模板类有点不一样(封装了)，是QuartzJobBean，但是用法还是一样的。
+>
+>   **PS:** quartz集群中，一个job定义指挥在一个节点被调度
+
+```java
+@PersistJobDataAfterExecution
+@DisallowConcurrentExecution
+public class QuartzJob extends QuartzJobBean {
+    @Override
+    protected void executeInternal(JobExecutionContext jobExecutionContext) throws JobExecutionException {
+        try {
+            Thread.sleep(2000);
+            System.out.println("Scheduler名：" + jobExecutionContext.getScheduler().getSchedulerName());
+            System.out.println("SchedulerId：" + jobExecutionContext.getScheduler().getSchedulerInstanceId());
+            System.out.println("-----------------------");
+        } catch (InterruptedException | SchedulerException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+**2，调度器scheduler**
+
+```java
+import org.quartz.Scheduler;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.PropertiesFactoryBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.quartz.SchedulerFactoryBean;
+
+import javax.sql.DataSource;
+import java.io.IOException;
+import java.util.Properties;
+import java.util.concurrent.Executor;
+
+@Configuration
+public class SchedulerConfig {
+    @Autowired
+    private DataSource dataSource;
+
+    @Bean
+    public Scheduler scheduler() throws IOException {
+        return schedulerFactoryBean().getScheduler();
+    }
+
+    /**
+     * Scheduler 工厂，用于读取配置文件quartz.properties
+     */
+    @Bean
+    public SchedulerFactoryBean schedulerFactoryBean() throws IOException {
+        SchedulerFactoryBean factory = new SchedulerFactoryBean();
+        // Scheduler名称，非必须
+        factory.setSchedulerName("my_cluster_scheduler");
+        // 注入数据源
+        factory.setDataSource(dataSource);
+        // factory在ioc中的key，非必须
+        factory.setApplicationContextSchedulerContextKey("application_key");
+        // 读取配置文件quartz.properties
+        factory.setQuartzProperties(quartzProperties());
+        // 线程池配置
+        factory.setTaskExecutor(threadPoolTaskExecutor());
+        // 调度器立即执行
+        factory.setStartupDelay(0);
+        return factory;
+    }
+
+    /**
+     * 读取配置文件quartz.properties
+     */
+    @Bean
+    public Properties quartzProperties() throws IOException {
+        PropertiesFactoryBean propertiesFactoryBean = new PropertiesFactoryBean();
+        propertiesFactoryBean.setLocation(new ClassPathResource("/quartz.properties"));
+        // 调用此方法才会真正的去加载配置文件
+        propertiesFactoryBean.afterPropertiesSet();
+        return propertiesFactoryBean.getObject();
+    }
+
+    /**
+     * 线程池配置
+     */
+    @Bean
+    public Executor threadPoolTaskExecutor() {
+        ThreadPoolTaskExecutor threadPoolTaskExecutor = new ThreadPoolTaskExecutor();
+        threadPoolTaskExecutor.setCorePoolSize(10);
+        threadPoolTaskExecutor.setMaxPoolSize(20);
+        threadPoolTaskExecutor.setQueueCapacity(100);
+
+        return threadPoolTaskExecutor;
+    }
+}
+```
+
+**3, 启动quartz**
+
+>   之前quartz是在main方法启动，在springboot环境显然不是在main。
+>
+>   通过监听spring容器的启动，当spring容器启动完成之后，启动quartz调度任务。
+
+```java
+import com.demo.quartz.spring.bootquartz.QuartzJob;
+import org.quartz.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.event.ContextRefreshedEvent;
+
+/**
+ * spring 监听器
+ * 监听容器启动，开启调度
+ */
+@Configuration
+public class StartApplicationListener implements ApplicationListener<ContextRefreshedEvent> {
+
+    @Autowired
+    private Scheduler scheduler;
+
+    @Override
+    public void onApplicationEvent(ContextRefreshedEvent contextRefreshedEvent) {
+        // 触发器 key。先去scheduler取没有才创建，确保一个实例就可以。
+        TriggerKey triggerKey = TriggerKey.triggerKey("trigger1", "trigger1_group1");
+        try {
+            Trigger trigger = scheduler.getTrigger(triggerKey);
+            if (trigger == null) {
+                // 触发器 Trigger（任务按触发器定义的规则执行任务）
+                trigger = TriggerBuilder.newTrigger()
+                    // 触发器身份 - 参数1：触发器名称（唯一），参数2：触发器组的名称。与JobDetail的没有任何关系
+                    .withIdentity("trigger1", "group1")
+                    // 任务的开始时间
+                    .startNow()
+                    // .endAt(endTime)
+                    // 调度类型-触发器类型
+                    .withSchedule(CronScheduleBuilder.cronSchedule("0/10 * * * * ?"))
+                    .build();
+
+                // 任务 JobDetail
+                JobDetail jobDetail = JobBuilder.newJob(QuartzJob.class)
+                    // 任务身份 - 参数1：任务名称（唯一），参数2：任务组的名称
+                    .withIdentity("job1", "group1")
+                    .usingJobData("count", 0)
+                    .build();
+
+                // 调度器使用触发器调度任务（调度器关联触发器与任务）
+                scheduler.scheduleJob(jobDetail, trigger);
+                // 启动
+                scheduler.start();
+            }
+        } catch (SchedulerException e) {
+            e.printStackTrace();
+        }
+    }
+}
 ```
 
