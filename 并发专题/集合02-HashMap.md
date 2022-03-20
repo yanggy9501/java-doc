@@ -124,7 +124,123 @@ private void grow(int minCapacity) {
 
 **注意：**链表头插法在多线程情况下有循环引用问题，导致插不进去。
 
-## 3，ConcurrentHashMap（并发安全map）
+### 2.1 JDK8中的HashMap与JDK7的HashMap
+
+#### 2.1.1 JDK8是通过数组+链表+红黑树来实现
+
+整体存储是数组，当方式hash冲突是就是采用链表存储冲突的key-value，当链表长度大于8时，链表转换为红黑树（提高效率）
+
+#### 2.1.2 JDK7链表采用头插法，而JDK8中改用尾插法
+
+>   原因：因为头插法在多线程环境下时存在问题的，在并发扩容时导致循环。
+
+正常扩容：
+
+原本是A -> B，但是头插法在扩容后AB顺序插入则变成了B->A
+
+![image-20220320200631680](asserts/image-20220320200631680.png)
+
+在多线程环境下：有可能出现下面情况
+
+![image-20220320201008744](asserts/image-20220320201008744.png)
+
+#### 2.1.3 JDK8使用了红黑树
+
+#### 2.1.4 JDK8中数组扩容的条件的变化
+
+>   只会判断是否当前元素个数是否查过了阈值，而不再判断当前put进来的元素对应的数组下标位置是否有值。
+
+#### 2.1.5 JDK7中是先扩容再添加新元素，JDK8中是先添加新元素然后再扩容
+
+>   是在put的时候进行扩容的。
+
+### 3，HashMap中PUT方法的流程
+
+>   HashMap有两个内部类
+>
+>   *   Node：链表
+>   *   TreeNode：红黑树
+
+**1，通过key计算hashcode**
+
+```java
+// put 方法
+public V put(K key, V value) {
+    return putVal(hash(key), key, value, false, true);
+}
+```
+
+**2. 通过hashcode和n-1的“与操作”计算出一个数组下标**
+
+```java
+if ((p = tab[i = (n - 1) & hash]) == null)
+    tab[i] = newNode(hash, key, value, null);
+```
+
+**3, 判断数组下标对应的位置，是不是空，如果是空(不发生hash冲突)则把entry直接存在该数组位置**
+
+```java
+ tab[i] = newNode(hash, key, value, null);
+```
+
+**4，并且还需要判断该链表中是否存在相同的key，如果存在，则更新value**
+
+```java
+// hash相同，key也相同那么就是重复key了需要更新value
+if (p.hash == hash &&((k = p.key) == key || (key != null && key.equals(k)))){
+      e = p;
+}
+```
+
+
+
+**5，如果该下标对应的位置不为空（发生hash冲突），则需要把entry插入到链表中**
+
+```java
+// 循环进行尾插法插入数据
+for (int binCount = 0; ; ++binCount) {
+    if ((e = p.next) == null) {
+        // 尾插法插入
+        p.next = newNode(hash, key, value, null);
+        // 判断是否转换为红黑树
+        if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
+            treeifyBin(tab, hash);
+        break;
+    }
+    if (e.hash == hash &&
+        ((k = e.key) == key || (key != null && key.equals(k))))
+        break;
+    p = e;
+}
+```
+
+**6，如果是JDK8，则会遍历链表，并且在遍历链表的过程中，统计当前链表的元 素个数，如果超过8个，则先把链表转变为红黑树，并且把元素插入到红黑树中**
+
+```java
+// 判断是否转换为红黑树
+if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
+    treeifyBin(tab, hash);
+```
+
+
+
+### 4，HashMap扩容流程
+
+1.   HashMap的扩容指的就是数组的扩容， 因为数组占用的是连续内存空间， 所以数组的扩容其实只能新开一个新的数组，然后把老数组上的元素转移到新 数组上来，这样才是数组的扩容。
+2.   在HashMap中也是一样，先新建一个2倍数组大小的数组。（ArrayList是1.5倍）
+3.   就把这个链 表上的元素转移到新数组上去。
+4.   在jdk8中，因为涉及到红黑树，比较复杂。
+5.    元素转移完了之后，在把新数组对象赋值给HashMap的table属性，老数组 会被回收到。
+
+### 5，为什么HashMap的数组的大小是2的幂次方数？
+
+>   hashcode是一个数字，然后通过 **hashcode & (table.length - 1) 运算得到一个数组下标index**，是通过与运算计算出 来一个数组下标的，而不是通过取余，与运算相比于取余运算速度更快，但是也有一 个前提条件，就是数组的长度得是一个2的幂次方数。
+>
+>   总之与计算数组下标有关。
+
+
+
+## 3，ConcurrentHashMap（并发安全）
 
 >   ConcurrentHashMap是并发安全的HashMap ，比Hashtable效率更高，Hashtable是synchronized锁住方法的，粒度比较大。
 >

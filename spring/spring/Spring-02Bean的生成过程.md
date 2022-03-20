@@ -66,8 +66,6 @@ Class<?> resolvedClass = resolveBeanClass(mbd, beanName);
 
 
 
-
-
 >   1.   实例化前-InstantiationAwareBeanPostProcessor
 >   2.   创建bean对象：利用该类的构造方法来实例化得到一个对象(推断构造方法)
 >   3.   依赖注入：Spring会判断该对象中是否存在被@Autowired注解了的属性，有进行1步骤然后注入

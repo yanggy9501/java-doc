@@ -389,7 +389,10 @@ public void run() {
 ## 1，初始化线程的 4 种方式
 
 *   继承 Thread：重新run方法
-*   实现 Runnable 接口：将runnable任务交给Thread执行
+*   实现 Runnable 接口：将runnable任务交给Thread执行，起到线程与任务的解耦。
+    *   问题1：不能抛出异常，只能自己解决
+    *   问题2：不能得到返回结果
+
 *   实现 Callable 接口 ： 返回FutureTask，通过其可以拿到返回结果，可以处理异常
 *   线程池
     *   通过Executors工具类
