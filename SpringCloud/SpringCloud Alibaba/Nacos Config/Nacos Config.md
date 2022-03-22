@@ -244,6 +244,8 @@ shared-confgs：一般配置各微服务都共享文件，如redis就是共享�
 > /nacos-1.4.1/conf/application.properties
 >
 > **注意：**目前发现使用docker容器的mysql会出现no datasource set错误。
+>
+> 解决：no datasource set错误应该是时区问题导致的，将serverTimezone=UTC改为：serverTimezone=Asia/Shanghai
 
 ```properties
 spring.datasource.platform=mysql
