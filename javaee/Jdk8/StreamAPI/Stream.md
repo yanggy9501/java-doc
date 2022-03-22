@@ -36,7 +36,7 @@ Stream<int[]> stream2 = Stream.of(arr); // 不行，会把整个arr看作一个�
 **Stream方法分类：**
 
 * 终结方法：返回值类型不再是Stream类型的方法，不再支持链式调用。
-* 非中介方法：返回值类型是Stream类型的方法
+* 非终结方法：返回值类型是Stream类型的方法
 
 
 

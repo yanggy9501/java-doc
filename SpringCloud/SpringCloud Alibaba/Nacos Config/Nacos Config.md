@@ -29,6 +29,8 @@
 
 ### 2.1 Nacos Config 开始了解
 
+http://192.168.134.128:8848/nacos/index.html
+
 **新增配置**
 
 ![image-20211220193651767](asserts/添加配置.png)
@@ -240,21 +242,17 @@ shared-confgs：一般配置各微服务都共享文件，如redis就是共享�
 **1，修改配置文件**
 
 > /nacos-1.4.1/conf/application.properties
+>
+> **注意：**目前发现使用docker容器的mysql会出现no datasource set错误。
 
 ```properties
-#*************** Spring Boot Related Configurations ***************#
-### Default web context path:
-server.servlet.contextPath=/nacos
-### Default web server port:
-server.port=8848
-
 spring.datasource.platform=mysql
 ### Count of DB:
 db.num=1
 ### Nacos 持久化:
 db.url.0=jdbc:mysql://MySQL地址:3306/nacos?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=UTC
-db.user.0=用户名
-db.password.0=密码
+db.user.0=mysql用户名
+db.password.0=mysql密码
 
 ### Connection pool configuration: hikariCP
 db.pool.config.connectionTimeout=30000
