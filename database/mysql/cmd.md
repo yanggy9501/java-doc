@@ -32,7 +32,7 @@ service mysql restart
 
 
 
-## 2，关闭mysql服务
+## 3，关闭mysql服务
 
 ### 命令行方式
 
