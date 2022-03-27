@@ -1,5 +1,3 @@
-#
-
 ## 1. 概述概述
 ### Arthas（阿尔萨斯） 能为你做什么？
 ![输入图片说明](images/QQ截图20220117180324.png "QQ截图20201229183512.png")
@@ -329,18 +327,21 @@ thread --state WAITING
 | --------------- | :----------------------------------: |
 | `class-pattern` |       类名\|类的方法表达式匹配       |
 | [-E]            | 开启正则表达式匹配，默认为通配符匹配 |
+| > 文件路径      |        指定管道，反编译到文件        |
 
 #### 反编译类
 
 ```shell
 # 默认
 jad 报名.类名
+# 反编译到文件
+jad 报名.类名 ./MathGame.java
 # 只显示源代码
 jad --source-only com.demo.MathGame
 ```
 ![输入图片说明](images/QQ截图20220118135415.png "QQ截图20201229183512.png")
 
-#### 反编译函数
+#### 反编译方法
 ```sh
 jad 包名.类名 方法
 jad demo.MathGame main
@@ -805,14 +806,88 @@ true
 "name".hash
 ```
 
+### 7.2 集合支持
 
+ognl 针对常用的集合进行了特殊的支持
+
+#### List
+
+通过{}创建列表，通过[]来访问对象下标的元素
+
+**案例：**下面表示创建一个列表，有三个元素: 1,2,3; 获取列表中下标为 2 的元素
+
+````ognl
+{1, 2, 3}[2]
+````
+
+#### Arrays
+
+数组，可以结合 new 来使用
+
+```ognl
+new int[] {1,2,3}
+```
+
+#### Map
+
+ \#{k:v, k:v} 方式来创建 map
+
+**案例：**下面的语句，表示创建一个 map，并获取其中 key 为 name 的元素
+
+```ognl
+#{ "name" : "一灰灰Blog", "age" :  18}["name"]
+```
+
+### 7.3 表达式语句
+
+前面是一些简单的，基本的成员访问，方法调用，除此之外还存在更牛逼的用法，支持表达式的执行.
+
+#### **成员赋值**
+
+```ognl
+#demo.name = "一灰灰blog"
+```
+
+#### **表达式计算**
+
+```ognl
+500 + 20 - 30 * 3
+```
+
+#### **三目运算符**
+
+```ognl
+"name".length() % 2 == 0 ? "偶数长度" : "奇数长度"
+```
+
+#### **集合支持**
+
+```ognl
+// in 语句，判断列表中是否包含
+"name" in {"name", "hello"}
+// 遍历集合，获取所有的偶数
+{1,2,3,4,5,6}.{? #this % 2 == 0}
+// 遍历集合，获取第一个满足条件的元素
+{1,2,3,4,5,6}.{^ #this % 2 == 0}
+// 遍历集合，获取最后一个满足条件的元素
+{1,2,3,4,5,6}.{$ #this % 2 == 0}
+```
+
+#### **对象创建**
+
+可以直接通过 new 来创建一个对象，当我们需要执行的目标方法的参数为非基本类型时，可能会非常好用
+
+```javascript
+// new + 完整的类名
+new java.lang.String("hello world")
+```
 
 ## 8，class/classloader相关
 
 >*   sc ：“Search-Class” 的简写，查看JVM已加载的类的信息。
 *   sm：”Search-Method“的简写，搜索方法。
 
-### 8.1 sc
+### 8.1 sc 搜索类
 
 >   默认开启了子类匹配功能，其子类也会被搜索出来。
 
@@ -842,7 +917,7 @@ sc -df demo.MathGame
 
 ![输入图片说明](images/QQ截图20220118145722.png "QQ截图20201229183512.png")
 
-### 8.2 sm
+### 8.2 sm 搜索方法
 
 >   ”Search-Method“的简写，搜索方法。但是sm 命令只能看到由当前类所声明 (declaring) 的方法，父类则无法看到。
 >
@@ -872,7 +947,7 @@ sm -d java.lang.String toString
 
 ![输入图片说明](images/QQ截图20220118150123.png "QQ截图20201229183512.png")
 
-### 8.3 jad
+### 8.3 jad反编译
 
 *   jad：反编译
 *   mc：编译
@@ -884,17 +959,37 @@ sm -d java.lang.String toString
 
 ### 8.4 mc 编译
 
+>   mc（Memory Compiler）：内存编译器，编译.java文件成.class文件
+
+```sh
+mc java文件路径
+# 指定编译后文件所在目录
+mc -d 目录 .java文件路径
+```
+
+**案例**
+
+```sh
+mc /root/Hello.java
+```
+
 ![输入图片说明](images/QQ截图20220118150825.png "QQ截图20201229183512.png")
 
->redefine 加载外部的.class文件，redefine到JVM里
+默认.class输出到arthas的安装目录下
 
-* 注意， redefine后的原来的类不能恢复，redefine有可能失败（比如增加了新的field），参考jdk本身的文档。
-* reset命令对redefine的类无效。如果想重置，需要redefine原始的字节码。
-* redefine命令和jad/watch/trace/monitor/tt等命令会冲突。执行完redefine之后，如果 再执行上面提到的命令，则会把redefine的字节码重置。
+### 8.5 redefine 加载外部.class文件
 
-### redefine 的限制
+>   arthas已经支持编译mc，反编译jad，有什么用呢？
+>
+>   redefine 加载外部.class文件，redefine到JVM里
 
-* 不允许新增加field/method
+* **注意：** redefine后的原来的类不能恢复，redefine有可能失败（比如增加了新的field或method），参考jdk本身的文档。
+* `reset命令对redefine的类无效`，如果想重置，需要redefine原始的字节码。
+* redefine命令和jad/watch/trace/monitor/tt等命令会冲突。执行完redefine之后，如果再执行上面提到的命令，则会把redefine的字节码重置。
+
+####  redefine 限制
+
+* 不允许新增field/method
 * 正在跑的函数，没有退出不能生效，比如下面新增加的System.out.println，只有run()函数里的会生效
 
 
@@ -925,7 +1020,7 @@ System.out.println("call run()");
     }
 }
 ```
-### 案例：结合 jad/mc 命令使用
+### 8.6 结合 jad/mc 命令使用
 ```shell
 # 1. 使用jad反编译demo.MathGame输出到/root/MathGame.java
 jad --source-only demo.MathGame > /root/MathGame.java
@@ -942,15 +1037,18 @@ redefine /root/demo/MathGame.class
 ```
 ![输入图片说明](images/QQ截图20220118151335.png "QQ截图20201229183512.png")
 
-> dump 将已加载类的字节码文件保存到特定目录：logs/arthas/classdump/
+### 8.7 dump 保存字节码
 
-### 参数
+将已加载类的字节码文件保存到特定目录，默认：logs/arthas/classdump/
+
+**参数：**
+
 参数名称|参数说明
 ---|:--:
 class-pattern| 类名表达式匹配
-[c:] |类所属 ClassLoader 的 hashcode
-[E] |开启正则表达式匹配，默认为通配符匹配
-### 举例
+[-c:] |类所属 ClassLoader 的 hashcode
+[-E] |开启正则表达式匹配，默认为通配符匹配
+**举例：**
 
 ```shell
 # 把String类的字节码文件保存到~/logs/arthas/classdump/目录下
@@ -966,19 +1064,28 @@ dump demo.*
 
 ![输入图片说明](images/QQ截图20220118151558.png "QQ截图20201229183512.png")
 
-> classloader
+### 8.8 classloader
+
+*   显示所有类加载器信息
+*   获取某个类加载器所在的jar包
+*   获取某个资源在哪个jar包
+*   加载某个类：类已经更新了能否重新加载？
+
+>   查看类加载器相关信息。
+
 * 1. classloader 命令将 JVM 中所有的classloader的信息统计出来，并可以展示继承树，urls等。
 * 2. 可以让指定的classloader去getResources，打印出所有查找到的resources的url。对于ResourceNotFoundException异常比较有用。
 
-### 参数说明
+**参数说明：**
+
 参数名称|参数说明
 ---|:--:
-[l] |按类加载实例进行统计
-[t] |打印所有ClassLoader的继承树
-[a] |列出所有ClassLoader加载的类，请谨慎使用
-[c:] |ClassLoader的hashcode
-[c: r:] |用ClassLoader去查找resource
-[c: load:] |用ClassLoader去加载指定的类
+[-l] |统计类加载器加载类的个数
+[-t] |tree 打印所有ClassLoader的继承树
+[-a] |列出所有ClassLoader加载的类，请**谨慎**使用
+[-c hash码] |ClassLoader的hashcode
+[-c hash码 -r 资源路径] |用ClassLoader去查找resource
+[-c hash码 --load 资源路径] |用ClassLoader去加载指定的类
 
 ### 举例
 
@@ -1028,30 +1135,35 @@ classloader -c 70dea4e --load java.lang.String
 ![输入图片说明](images/QQ截图20220118152140.png "QQ截图20201229183512.png")
 
 
-## monitor/watch/trace相关
+## 9，monitor/watch/trace/stack相关
 
-> monitor
-* 方法执行监控对匹配 class-pattern／method-pattern的类、方法的调用进行监控。
-* monitor 命令是一个非实时返回命令，实时返回命令是输入之后立即返回，而非实时返回的命令，则是不断的等待目标 Java 进程返回信息，直到用户输入 Ctrl+C 为止。
+### 9.1 monitor 方法调用统计
 
-### 参数说明
+>   用来监视一个时间段中指定方法的执行次数，成功次数，失败次数，耗时等这些信息。
+>
+>   监控指定类中方法执行情况，其是非实时监视的，其是不断的等待目标 Java 进程返回信息，直到用户输入 Ctrl+C 为止。
+
+**参数说明**
+
 方法拥有一个命名参数 [c:]，意思是统计周期（cycle of output），拥有一个整型的参数值
 
 参数名称|参数说明
 ---|:--:
-class-pattern |类名表达式匹配
-method-pattern |方法名表达式匹配
-[E] |开启正则表达式匹配，默认为通配符匹配
-[c:] |统计周期，默认值为120秒
+`class-pattern` |类名表达式匹配
+`method-pattern` |方法名表达式匹配
+[-E] |开启正则表达式匹配，默认为通配符匹配
+[-c 数字] |cycle 统计周期，默认值为120秒
 
-### 举例
+**案例：**
+
 ```shell
 # 过 5 秒统计一次，统计类demo.MathGame中primeFactors方法
 monitor -c 5 demo.MathGame primeFactors
 ```
 ![输入图片说明](images/QQ截图20220118152539.png "QQ截图20201229183512.png")
 
-### 监控的维度说明
+**监控的维度说明**
+
 监控项|说明
 ---|:--:
 timestamp |时间戳
@@ -1063,70 +1175,105 @@ fail |失败次数
 rt |平均耗时
 fail-rate |失败率
 
-### 小结
-##### monitor命令的作用是什么？
-用来监视一个时间段中指定方法的执行次数，成功次数，失败次数，耗时等这些信息
+### 9.2 watch 实时观察方法调用
 
->watch 方法执行数据观测，让你能方便的观察到指定方法的调用情况。
-能观察到的范围为：返回值、抛出异常、入参，通过编写OGNL 表达式进行对应变量的查看。
-### 参数说明
-##### watch 的参数比较多，主要是因为它能在 4 个不同的场景观察对象
-##### 参数名称 参数说明
+>watch命令： 观察指定方法的调用情况。
+>能观察到的范围：`入参` 、`返回值`、`抛出异常`、`出参`,通过编写OGNL 表达式进行对应变量的查看。
+>
+>出参：方法的入参传入后，在方法内部可能被修改，在方法出去后其与入参时不一样了。
+```sh
+watch 包名.类名 方法名 ognl表达式 [其他参数]
+```
+
+watch 的参数比较多，主要是因为它能在 4 个不同的场景观察对象
+
+**参数**
+
 参数名称|参数说明
 ---|:--:
 class-pattern |类名表达式匹配
 method-pattern |方法名表达式匹配
-express |观察表达式
-condition-express |条件表达式
-[b] |在 方法调用之前 观察
-[e] |在 方法异常之后 观察
-[s] |在 方法返回之后 观察
-[f] |在 方法结束之后 (正常返回和异常返回)观察
-[E] |开启正则表达式匹配，默认为通配符匹配
-[x:] |指定输出结果的属性遍历深度，默认为 1
+`{express}` |观察表达式(最重要，一般为ognl表达式)
+`condition-express` |条件表达式
+[-b] |before 在方法调用之前观察
+[-e] |exception 在方法异常之后观察
+[-s] |success 在方法返回之后观察
+[-f] |finish 在方法结束之后 (正常返回和异常返回)观察
+[-E] |regexp 开启正则表达式匹配，默认为通配符匹配
+[-x 数字] |指定输出结果的遍历深度，默认为 1
+[-n 数字] |观察指定方法，只显示n次
 
-##### 这里重点要说明的是观察表达式，观察表达式的构成主要由ognl 表达式组成，所以你可以这样写"{params,returnObj}"，只要是一个合法的 ognl 表达式，都能被正常支持。
+**这里重点要说明的是观察表达式，观察表达式的构成主要由ognl 表达式组成，所以你可以这样写"{params,returnObj}"，只要是一个合法的 ognl 表达式，都能被正常支持。**
 
 #### 特别说明
-* watch 命令定义了4个观察事件点，即 -b 方法调用前，-e 方法异常后，-s 方法返回后，-f 方法结束后
-* 4个观察事件点 -b、-e、-s 默认关闭，-f 默认打开，当指定观察点被打开后，在相应事件点会对观察表达式进行求值并输出
-* 这里要注意方法入参和方法出参的区别，有可能在中间被修改导致前后不一致，除了 -b 事件点params 代表方法入参外，其余事件都代表方法出参
-* 当使用 -b 时，由于观察事件点是在方法调用前，此时返回值或异常均不存在
 
-### 举例
+* watch 命令定义了4个观察事件点，默认打开-f ，即 
+    * -b 方法调用前
+    * -e 方法异常后
+    * -s 方法返回后
+    * -f 方法结束后
+
+* 这里要注意方法入参和方法出参的区别，有可能在中间被修改导致前后不一致，除了 -b 事件点params 代表方法入参外，其余事件都代表方法出参。
+* 当使用 -b 时，由于观察事件点是在方法调用前，此时返回值或异常均不存在。
+
+#### watch 中ognl使用
+
+>   ognl在watch中使用，watch是观察指定方法的调用情况，所以ognl表达式描述的是这个“方法”，如：入参params，返回值retureObj
+>
+>   *   params：代表入参是一个数组（不知道就用其）
+>
+>   *   retureObj：代表返回值，一般和-x 一起用
+>   *   target：表示执行方法的对象（当前调用该方法的对象）
+>
+>   
+
+##### 1. 方法出参和返回值
 
 ```shell
-# 观察demo.MathGame类中primeFactors方法出参和返回值，结果属性遍历深度为 2 。params表示所有参数数组，returnObject表示返回值
-
+# 观察demo.MathGame类中primeFactors方法出参和返回值，结果遍历深度为 2
+# params表示所有参数数组，returnObject表示返回值
 watch demo.MathGame primeFactors "{params,returnObj}" -x 2
 ```
 
 ![输入图片说明](images/QQ截图20220118153022.png "QQ截图20201229183512.png")
 
+##### 2. 观察方法入参
+
 ```shell
-# 观察方法入参，对比前一个例子，返回值为空（事件点为方法执行前，因此获取不到返回值）
+# 对比前一个例子，返回值为空（事件点为方法执行前，因此获取不到返回值）
 watch demo.MathGame primeFactors "{params,returnObj}" -x 2 -b
 ```
 ![输入图片说明](images/QQ截图20220118153102.png "QQ截图20201229183512.png")
 
-```shell
-# 同时观察方法调用前和方法返回后，参数里-n 2，表示只执行两次。这里输出结果中，第一次输出的是方法调用前的观察表达式的结果，第二次输出的是方法返回后的表达式的结果params表示参数，target表示执行方法的对象，returnObject表示返回值
+##### 3.观察方法调用前和方法返回
 
+```shell
+# 参数里-n 2，表示只执行两次。结果中，
+# 第一次输出的是方法调用前的观察表达式的结果，
+# 第二次输出的是方法返回后的表达式的结果
 watch demo.MathGame primeFactors "{params,target,returnObj}" -x 2 -b -s -n 2
 ```
 ![输入图片说明](images/QQ截图20220118153145.png "QQ截图20201229183512.png")
 
+##### 4. 观察当前对象中的属性
+
 ```shell
-# 观察当前对象中的属性，如果想查看方法运行前后，当前对象中的属性，可以使用target关键字，代表当前对象
+# 如果想查看方法运行前后，当前对象（调用该方法的对象）中的属性，可以使用target关键字，代表当前对象
 watch demo.MathGame primeFactors 'target'
 ```
 ![输入图片说明](images/QQ截图20220118153220.png "QQ截图20201229183512.png")
+
+##### 5. 访问当前对象的某个属性
 
 ```shell
 # 使用target.field_name访问当前对象的某个属性
 watch demo.MathGame primeFactors 'target.illegalArgumentCount'
 ```
 ![输入图片说明](images/QQ截图20220118153235.png "QQ截图20201229183512.png")
+
+##### 6. 条件表达式-条件观察
+
+符号条件表达式的才会被watch观察
 
 ```shell
 # 条件表达式的例子，输出第 1 参数小于的情况
@@ -1135,25 +1282,35 @@ watch demo.MathGame primeFactors "{params[0],target}" "params[0]<0"
 
 ![输入图片说明](images/QQ截图20220118153312.png "QQ截图20201229183512.png")
 
+### 9.3 trace 
 
-> trace 
+>用于对方法内部调用路径进行追踪，并输出方法路径上的每个节点上耗时。
+>
+>trace 命令能主动搜索 class-pattern／method-pattern 对应的方法调用路径，渲染和统计整个调用链路上的所有性能开销和追踪调用链路。
+>
+>**观察表达式**主要由ognl 表达式组成，如："{params,returnObj}"。
+>
+>很多时候我们只想看到某个方法的rt大于某个时间之后的trace结果，现在Arthas可以按照方法执行的耗时来进行过滤了，例如trace *StringUtils isBlank '#cost>100'表示当执行时间超过100ms的时候，才会输出trace的结果。
+>
+>watch/stack/trace这个三个命令都支持#cost
 
->方法内部调用路径，并输出方法路径上的每个节点上耗时<br>
-trace 命令能主动搜索 class-pattern／method-pattern 对应的方法调用路径，渲染和统计整个调用链路上的所有性能开销和追踪调用链路。<br>
-观察表达式的构成主要由ognl 表达式组成，所以你可以这样写"{params,returnObj}"，只要是一个合法的 ognl 表达式，都能被正常支持。<br>
-很多时候我们只想看到某个方法的rt大于某个时间之后的trace结果，现在Arthas可以按照方法执行的耗时来进行过滤了，例如trace *StringUtils isBlank '#cost>100'表示当执行时间超过100ms的时候，才会输出trace的结果。<br>
-watch/stack/trace这个三个命令都支持#cost<br>
+**参数说明**
 
-### 参数说明
 参数名称|参数说明
 ---|:--:
 class-pattern |类名表达式匹配
 method-pattern |方法名表达式匹配
-condition-express |条件表达式
-[E] |开启正则表达式匹配，默认为通配符匹配
-[n:] |命令执行次数
+ express           |       观察表达式(ognl 表达式)        
+ condition-express |              条件表达式              
+ [-E]              | 开启正则表达式匹配，默认为通配符匹配 
+ [-n 数字]         |             命令执行次数             
 #cost |方法执行耗时
-### 举例
+#### 观察指定方法
+
+*   thread_name：线程名字
+*   thread_name
+*   priority
+
 ```shell
 # trace函数指定类的指定方法
 trace demo.MathGame run
@@ -1173,20 +1330,25 @@ trace --skipJDKMethod false demo.MathGame run
 ```
 ![输入图片说明](images/QQ截图20220118154121.png "QQ截图20201229183512.png")
 
+#### 耗时过滤
+
 ```shell
 # 据调用耗时过滤，trace大于0.5ms的调用路径
 trace demo.MathGame run '#cost > .5'
 ```
 ![输入图片说明](images/QQ截图20220118154204.png "QQ截图20201229183512.png")
 
+#### 正则
+
 ```shell
 # 可以用正则表匹配路径上的多个类和函数，一定程度上达到多层trace的效果。
 trace -E com.test.ClassA|org.test.ClassB method1|method2|method3
 ```
->stack
+### 9.4 stack
 
->输出当前方法被调用的调用路径<br>
-很多时候我们都知道一个方法被执行，但这个方法被执行的路径非常多，或者你根本就不知道这个方法是从那里被执行了，此时你需要的是 stack 命令。
+>输出当前方法被调用的调用路径(和trace似乎相反)。
+>
+>很多时候我们都知道一个方法被执行，但这个方法被执行的路径非常多，或者你根本就不知道这个方法是从那里被执行了，此时你需要的是 stack 命令。
 
 ### 参数说明
 
@@ -1195,10 +1357,8 @@ trace -E com.test.ClassA|org.test.ClassB method1|method2|method3
 class-pattern |类名表达式匹配
 method-pattern |方法名表达式匹配
 condition-express |条件表达式
-[E] |开启正则表达式匹配，默认为通配符匹配
-[n:] |执行次数限制
-
-### 举例
+[-E] |开启正则表达式匹配，默认为通配符匹配
+[-n 数字] |执行次数限制
 
 ```shell
 # 获取primeFactors的调用路径
@@ -1219,100 +1379,13 @@ stack demo.MathGame primeFactors '#cost>5'
 ![输入图片说明](images/QQ截图20220118155228.png "QQ截图20201229183512.png")
 
 
-> dump 将已加载类的字节码文件保存到特定目录：logs/arthas/classdump/
 
-### 参数
-参数名称|参数说明
----|:--:
-class-pattern |类名表达式匹配
-[c:] |类所属 ClassLoader 的 hashcode
-[E] |开启正则表达式匹配，默认为通配符匹配
-### 举例
-
-```shell
-# 把String类的字节码文件保存到~/logs/arthas/classdump/目录下
-dump java.lang.String
-```
-
-```shell
-# 把demo包下所有的类的字节码文件保存到~/logs/arthas/classdump/目录下
-dump demo.*
-```
-![输入图片说明](images/QQ截图20220118161524.png "QQ截图20201229183512.png")
-
-### 小结
-dump作用：将正在JVM中运行的程序的字节码文件提取出来，保存在logs相应的目录下不同的类加载器放在不同的目录下
-
-> classloader 获取类加载器的信息
-* 1. classloader 命令将 JVM 中所有的classloader的信息统计出来，并可以展示继承树，urls等。
-* 2. 可以让指定的classloader去getResources，打印出所有查找到的resources的url。对于
-
-### 参数说明
-参数名称|参数说明
----|:--:
-[l] 按类加载实例进行统计
-[t] 打印所有ClassLoader的继承树
-[a] 列出所有ClassLoader加载的类，请谨慎使用
-[c:] ClassLoader的hashcode
-[c: r:] 用ClassLoader去查找resource
-[c: load:] 用ClassLoader去加载指定的类
-### 举例
-
-```shell
-# 默认按类加载器的类型查看统计信息
-classloader
-```
-![输入图片说明](images/QQ截图20220118162454.png "QQ截图20201229183512.png")
-
-```shell
-# 按类加载器的实例查看统计信息，可以看到类加载的hashCode
-classloader -l
-```
-
-![输入图片说明](images/QQ截图20220118162520.png "QQ截图20201229183512.png")
-
-```shell
-# 查看ClassLoader的继承树
-classloader -t
-```
-![输入图片说明](images/QQ截图20220118162554.png "QQ截图20201229183512.png")
-
-```shell
-# 通过类加载器的hash，查看此类加载器实际所在的位置
-classloader -c 680f2737
-```
-
-![输入图片说明](images/QQ截图20220118162708.png "QQ截图20201229183512.png")
-
-```shell
-# 使用ClassLoader去查找指定资源resource所在的位置
-classloader -c 680f2737 -r META-INF/MANIFEST.MF
-```
-![输入图片说明](images/QQ截图20220118162832.png "QQ截图20201229183512.png")
-
-```shell
-# 使用ClassLoader去查找类的class文件所在的位置
-classloader -c 680f2737 -r java/lang/String.class
-```
-![输入图片说明](images/QQ截图20220118162844.png "QQ截图20201229183512.png")
-
-```shell
-# 使用ClassLoader去加载类
-classloader -c 70dea4e --load java.lang.String
-```
-![输入图片说明](images/QQ截图20220118162855.png "QQ截图20201229183512.png")
-
-### 小结
-
-##### classloader命令主要作用有哪些？
-
-* 1. 显示所有类加载器的信息
-* 2. 获取某个类加载器所在的jar包
-* 3. 获取某个资源在哪个jar包中
-* 4. 加载某个类
+## 10，tt 
 
 
-> tt time-tunnel 时间隧道,记录下指定方法每次调用的入参和返回信息，并能对这些不同时间下调用的信息进行观测
+
+
+> time-tunnel 时间隧道,记录下指定方法每次调用的入参和返回信息，并能对这些不同时间下调用的信息进行观测
 
 * watch 虽然很方便和灵活，但需要提前想清楚观察表达式的拼写，这对排查问题而言要求太高，因为很多时候我们并不清楚问题出自于何方，只能靠蛛丝马迹进行猜测。
 * 这个时候如果能记录下当时方法调用的所有入参和返回值、抛出的异常会对整个问题的思考与判断非常有帮助。
@@ -1328,11 +1401,10 @@ tt的参数|说明
 -i |索引号 查看指定索引号的详细调用信息
 -p |重新调用指定的索引号时间碎片
 
-* - t
-    * tt 命令有很多个主参数，-t 就是其中之一。这个参数表明希望记录下类 *Test 的 print 方法的每次执行情况。
-
-* - n 3
-    * 当你执行一个调用量不高的方法时可能你还能有足够的时间用 CTRL+C 中断 tt 命令记录的过程，但如果遇到调用量非常大的方法，瞬间就能将你的 JVM 内存撑爆。此时你可以通过 -n 参数指定你需要记录的次数，当达到记录次数时 Arthas 会主动中断tt命令的记录过程，避免人工操作无法停止的情况。
+* t
+  * tt 命令有很多个主参数，-t 就是其中之一。这个参数表明希望记录下类 *Test 的 print 方法的每次执行情况。
+* n 3
+  * 当你执行一个调用量不高的方法时可能你还能有足够的时间用 CTRL+C 中断 tt 命令记录的过程，但如果遇到调用量非常大的方法，瞬间就能将你的 JVM 内存撑爆。此时你可以通过 -n 参数指定你需要记录的次数，当达到记录次数时 Arthas 会主动中断tt命令的记录过程，避免人工操作无法停止的情况。
 
 
 ```
@@ -1526,63 +1598,9 @@ profiler getSamples |获取已采集的sample的数量
 profiler status |查看profiler的状态，运行的时间
 profiler stop |停止profiler，生成火焰图的结果，指定输出目录和输出格式：svg或html
 
-## Arthas实践：哪个Controller处理了请求
 
->我们可以快速定位一个请求是被哪些Filter拦截的，或者请求最终是由哪些Servlet处理的。但有时，我们想知道一个请求是被哪个Spring MVC Controller处理的。如果翻代码的话，会比较难找，并且不一定准确。通过Arthas可以精确定位是哪个Controller处理请求。
 
-### 准备场景
 
-##### 将ssm_student.war项目部署到Linux的tomcat服务器下，可以正常访问。
-
-##### 启动之后，访问：http://192.168.254.199:8080/ssm_student ，会返回如下页面。
-
-##### 那么这个请求是被哪个Controller处理的呢？
-
-![输入图片说明](images/QQ截图20220118155620.png "QQ截图20201229183512.png")
-
-### 步骤
-
-* 1. trace定位DispatcherServlet
-* 2. jad反编译DispatcherServlet
-* 3. watch定位handler
-
-### 实现步骤
-
-* 第1步：
-```shell
-# 在浏览器上进行登录操作，检查最耗时的方法
-trace *.DispatcherServlet *
-```
-![输入图片说明](images/QQ截图20220118155743.png "QQ截图20201229183512.png")
-
-```shell
-# 可以分步trace，请求最终是被DispatcherServlet#doDispatch()处理了
-trace *.FrameworkServlet doService
-```
-![输入图片说明](images/QQ截图20220118155754.png "QQ截图20201229183512.png")
-
-* 第2步：
-```shell
-# trace结果里把调用的行号打印出来了，我们可以直接在IDE里查看代码（也可以用jad命令反编译）
-jad --source-only *.DispatcherServlet doDispatch
-```
-![输入图片说明](images/QQ截图20220118155838.png "QQ截图20201229183512.png")
-
-* 第3步：
-```shell 
-# 查看返回的结果，得到使用到了 2 个控制器的方法
-watch *.DispatcherServlet getHandler 'returnObj'
-```
-![输入图片说明](images/QQ截图20220118155927.png "QQ截图20201229183512.png")
-
-### 结论
-
-通过trace, jad, watch最后得到这个操作由2个控制器来处理，分别是：
-
-```java
-com.itheima.controller.UserController.login()
-com.itheima.controller.StudentController.findAll()
-```
 
 
 
