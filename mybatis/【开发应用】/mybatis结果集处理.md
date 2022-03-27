@@ -1,6 +1,6 @@
 # mybatis 特殊结果处理
 
-## 1，List＜基础类型：String＞属性处理
+## 1，包含基础类型机会的属性处理
 
 >   在使用MyBatis查询数据库时，经常会有一对多的情况，那么在一对多的情况时，如果是一个`Collection<String>`或者`Collection<Integer>` 类型，那么我们的`ResultMap`该如何定义？
 
@@ -102,3 +102,49 @@ CREATE TABLE `demo_user` (
 >   原理就是在发一次sql查询。
 >
 >   不推荐这里不写
+
+## 2，对象包含对象的属性处理
+
+>   一个对象之中包含另外一个对象的时候的，xml结果映射该如何写呢？
+>
+>   假设场景：一个员工属于一个部门
+
+```java
+public class Employee {
+    private Integer id;
+    private String name;
+    // 部门
+    private Dept dept;
+}
+```
+
+### 方式一：查询嵌套
+
+>   按结果嵌套处理，就像SQL中的联表查询。
+
+```xml
+<resultMap id="employeeMap" type="xxx.Employee">
+	<id column="id" property="id"/>
+    <result column="name" property="name" />
+    <!-- 
+		property: 属性名
+		javaType：对应的数据类型或别名
+	-->
+    <association property="dept" javaType="xxx.Dept">
+        <!-- 没有id，无需该标签 -->
+        <id column="id" property="id"/>
+        <result column="deptName" property="deptName" />
+    </association>
+</resultMap>
+
+<association property="dept"  javaType="xxx.Dept">
+	<id column="id" property="id"/>
+    <result column="deptName" property="deptName" />
+</association>	
+```
+
+
+
+### 方式二：级联查询
+
+>   需要发送另外一个sql查询，用于封装属性对象的结果，由于多发送一条sql，所以不推荐。

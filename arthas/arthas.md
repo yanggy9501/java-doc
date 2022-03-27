@@ -105,7 +105,9 @@ java -jar arthas-boot.jar
 #### 卸载
 
 ```shell
+# arthas服务，可能不在这里
 rm -rf ~/.arthas/
+# arths日志，在用户目录下
 rm -rf ~/logs/arthas
 ```
 **ps：**Windows 平台直接删除user home下面的.arthas和logs/arthas目录
@@ -206,7 +208,7 @@ ps：jar包运行时，出现 “jar中没有主清单属性“
 ### 2. 启动 Demo
 
 ```shell
-#在命令行下执行
+# 在命令行下执行
 java -jar arthas-demo.jar
 ```
 ### 3. 启动 arthas
@@ -266,7 +268,7 @@ dashboard
 
 | 参数           | 说明                                                         |
 | -------------- | ------------------------------------------------------------ |
-| 数字           | 线程id                                                       |
+| 数字           | 线程id，显示该线程详情                                       |
 | [-n 数字]      | 打印最忙的前n个线程堆栈，如：[-n 3]                          |
 | [-b]           | 找出当前被阻塞的线程，在dashboard也能看到状态，该命令有更详细的信息 |
 | [-i  数字]     | 指定采用时间间隔                                             |
@@ -277,7 +279,7 @@ dashboard
 ```sh
 # 默认
 thread
-# 
+# 获取最繁忙的前3个线程
 thread -n 3
 ```
 
@@ -298,13 +300,13 @@ thread 1会打印线程ID 1的栈，通常是main函数的线程。
 
 #### 2.3 查询阻塞线程
 
->   有时候应用卡住了，通常是由于某个线程拿住了某个锁，并且其他线程都在等待这把锁。
+>   有时候应用卡住了，通常是由于某个线程拿住了某个锁，并且其他线程都在等待这把锁（阻塞线程或死锁线程都会显示）。
 
 ```sh
 thread -b
 ```
 
- ![输入图片说明](asserts/QQ截图20220118142033.png "QQ截图20201229183512.png")
+![输入图片说明](asserts/QQ截图20220118142033.png "QQ截图20201229183512.png")
 
 #### 2.4 查看某状态的线程 
 
@@ -318,8 +320,9 @@ thread --state WAITING
 
 >   反编译命令（java decompile），将class反编译成java。
 >
->   反编绎时只显示源代码，默认情况下，反编译结果里会带有ClassLoader信息，通过--source-only选
->   项，可以只打印源代码。方便和mc/redefine命令结合使用。jad --source-only demo.MathGame
+>   反编绎默认情况下，反编译结果里会带有ClassLoader信息，通过--source-only选项，可以只打印源代码。方便和mc/redefine命令结合使用。
+>
+>   jad --source-only demo.MathGame
 
 **参数：**
 
@@ -327,15 +330,15 @@ thread --state WAITING
 | --------------- | :----------------------------------: |
 | `class-pattern` |       类名\|类的方法表达式匹配       |
 | [-E]            | 开启正则表达式匹配，默认为通配符匹配 |
-| > 文件路径      |        指定管道，反编译到文件        |
+| > 文件路径      |  指定管道，反编译到那个目录下的文件  |
 
 #### 反编译类
 
 ```shell
-# 默认
-jad 报名.类名
+# 反编译类，并在控制台上显示
+jad 包名.类名
 # 反编译到文件
-jad 报名.类名 ./MathGame.java
+jad 包名.类名 > ./MathGame.java
 # 只显示源代码
 jad --source-only com.demo.MathGame
 ```
@@ -343,7 +346,9 @@ jad --source-only com.demo.MathGame
 
 #### 反编译方法
 ```sh
+# 格式
 jad 包名.类名 方法
+# 案例
 jad demo.MathGame main
 ```
 
@@ -352,18 +357,20 @@ jad demo.MathGame main
 #### 补充
 
 ```sh
-# 在内存中编译Hello.java为Hello.class
+# 在内存中编译Hello.java为Hello.class，class文件存在内存
 mc /root/Hello.java
-# 可以通过-d命令指定输出目录
+# 可以通过-d参数，将编译的字节码输出到指定文件
 mc -d /root/bbb /root/Hello.java
 ```
 
-### 4. watch 监视方法
+### 4. watch 方法监视
 
->   监视作用，可以用来监视程序在执行过程中的它的输出参数是什么，返回值是什么，类似debug。
+>   监视方法，可以用来监视程序在执行过程中的它的输出参数是什么，返回值是什么（类似debug）
+>
+>   详细内容在后面章节
 
 ```sh
-watch 包名.类名 方法名 ognl表达式
+watch 包名.类名 方法名 ognl表达式（指定查看的内容）[条件表达式]
 ```
 
 如：通过watch命令来查看demo.MathGame#primeFactors函数的返回值
@@ -383,16 +390,14 @@ watch demo.MathGame primeFactors returnObj
 stop
 ```
 
-
-
 |  命令   | 功能  |
 |  ----  | ----  |
-| dashboard  | 会展示当前进程的信息 |
-| thread  | 打印指定编号的线程调用栈 |
-| jad  | 反编译指定的类 |
-| watch  | 查看指定方法的返回值 |
+| dashboard  | 仪表盘面板 |
+| thread  | 打印线程信息 |
+| jad  | 反编译 |
+| watch  | 监视方法 |
 
-## 5，基础命令
+## 5，辅助命令
 
 *   help
 *   cat
@@ -403,7 +408,10 @@ stop
 ### 5.1，**help** 查看命令帮助信息
 
 ```sh
+# 查看所有命令的帮助
 help
+# 查看指定命令的帮助信息，如：
+thread -h
 ```
 
 >   会显示出所有的arths命令，及其说明。
@@ -432,9 +440,9 @@ cat linux中目录下的文件
 
 |  参数列表   | 作用  |
 |  ----  | ----  |
-| -n  | 显示行号 |
-| -i  | 忽略大小写来查找 |
-| -m 行数 | 即max，最大显示行数，要与查询字符串一起使用即要带参数，如: -m 10 |
+| -n  | number 显示行号 |
+| -i  | ignore 忽略大小写来查找 |
+| -m 行数 | max，最大显示行数，要与查询字符串一起使用即要带参数，如: -m 10 |
 | -e "正则表达式" | 即regexp，使用正则表达式查找 |
 
 #### 举例
@@ -506,13 +514,14 @@ reset
 ### 5.8 trace 方法追踪
 
 >   **注意 ：**记得reset
+>
+>   详细看后面章节
 
   ```sh
   # 追踪
   trace 报名.类名 方法
   # 停止追踪
   reset
-  # 或者带参数
   ```
 
 >   追踪方法信息：
@@ -522,7 +531,7 @@ reset
 >   ---[0.213361ms] com.demo.MathGame:print()
 >   ```
 >
->   *   ts：什么时候运行的
+>   *   ts：线程开始时间
 >   *   thread_name：线程的名字
 >   *   is_daemon：是否是后台进程
 >   *   priority：优先级
@@ -682,7 +691,7 @@ vmoption PrintGCDetails true
 getstatic 包名.类名 属性名
 ```
 
->   通过getstatic命令可以方便的查看类的静态属性
+>   通过getstatic命令可以方便的查看类的静态属
 
 ![image-20220327031807142](asserts/image-20220327031807142.png)
 
@@ -1087,7 +1096,7 @@ dump demo.*
 [-c hash码 -r 资源路径] |用ClassLoader去查找resource
 [-c hash码 --load 资源路径] |用ClassLoader去加载指定的类
 
-### 举例
+**案例**
 
 
 ```shell
@@ -1225,9 +1234,11 @@ method-pattern |方法名表达式匹配
 >   *   retureObj：代表返回值，一般和-x 一起用
 >   *   target：表示执行方法的对象（当前调用该方法的对象）
 >
->   
+>   单个：“params”
+>
+>   多个：“{params, target, retutnObj}”
 
-##### 1. 方法出参和返回值
+##### 1. 方法出参和返回值 
 
 ```shell
 # 观察demo.MathGame类中primeFactors方法出参和返回值，结果遍历深度为 2
@@ -1278,6 +1289,8 @@ watch demo.MathGame primeFactors 'target.illegalArgumentCount'
 ```shell
 # 条件表达式的例子，输出第 1 参数小于的情况
 watch demo.MathGame primeFactors "{params[0],target}" "params[0]<0"
+# 是java的条件
+watch com.demo.web.controller.DemoController getR "{params,target, returnObj}" "params[0].equals('1111')"  -b -s -x 2
 ```
 
 ![输入图片说明](images/QQ截图20220118153312.png "QQ截图20201229183512.png")
@@ -1385,41 +1398,37 @@ stack demo.MathGame primeFactors '#cost>5'
 
 
 
-> time-tunnel 时间隧道,记录下指定方法每次调用的入参和返回信息，并能对这些不同时间下调用的信息进行观测
+> time-tunnel 时间隧道,记录下指定方法每次调用的`入参和返回信息`(类似watch)，并能对这些不同时间下调用的信息进行观测
 
-* watch 虽然很方便和灵活，但需要提前想清楚观察表达式的拼写，这对排查问题而言要求太高，因为很多时候我们并不清楚问题出自于何方，只能靠蛛丝马迹进行猜测。
+* watch 虽然很方便和灵活，但需要提前想清楚`ognl`观察表达式的拼写，这对排查问题而言要求太高，因为很多时候我们并不清楚问题出自于何方，只能靠蛛丝马迹进行猜测。
 * 这个时候如果能记录下当时方法调用的所有入参和返回值、抛出的异常会对整个问题的思考与判断非常有帮助。
 * 于是乎，TimeTunnel 命令就诞生了。
 
-### 参数解析
+**参数解析**
+
 tt的参数|说明
 ---|:--:
 -t |记录某个方法在一个时间段中的调用
 -l |显示所有已经记录的列表
--n |次数 只记录多少次
--s |表达式 搜索表达式
--i |索引号 查看指定索引号的详细调用信息
+-n +次数 |只记录多少次（防止VM 内存撑爆）
+-s +表达式 |搜索表达式
+-i +索引号 |查看指定索引号的详细调用信息
 -p |重新调用指定的索引号时间碎片
-
-* t
-  * tt 命令有很多个主参数，-t 就是其中之一。这个参数表明希望记录下类 *Test 的 print 方法的每次执行情况。
-* n 3
-  * 当你执行一个调用量不高的方法时可能你还能有足够的时间用 CTRL+C 中断 tt 命令记录的过程，但如果遇到调用量非常大的方法，瞬间就能将你的 JVM 内存撑爆。此时你可以通过 -n 参数指定你需要记录的次数，当达到记录次数时 Arthas 会主动中断tt命令的记录过程，避免人工操作无法停止的情况。
 
 
 ```
 条件表达式来过滤，第 0 个参数的值小于 0 ，-n表示获取 2 次
 stack demo.MathGame primeFactors 'params[0]<0' -n 2
 ```
-### 使用案例
+**使用案例**
+
 ```shell
 # 最基本的使用来说，就是记录下当前方法的每次调用环境现场。
 tt -t demo.MathGame primeFactors
 ```
 ![输入图片说明](images/QQ截图20220118170830.png "QQ截图20201229183512.png")
 
-
-### 表格字段说明
+**字段说明**
 
 表格字段|字段解释
 ---|:--:
@@ -1432,7 +1441,7 @@ OBJECT |执行对象的hashCode()，注意，曾经有人误认为是对象在JV
 CLASS |执行的类名
 METHOD |执行的方法名
 
-##### 条件表达式
+### 10.1 条件表达式
 不知道大家是否有在使用过程中遇到以下困惑
 * Arthas 似乎很难区分出重载的方法
 * 我只需要观察特定参数，但是 tt 却全部都给我记录了下来
