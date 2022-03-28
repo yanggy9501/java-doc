@@ -699,12 +699,14 @@ getstatic 包名.类名 属性名
 
 ## 7，ognl  表达式
 
+ognl 表达式在arthas控制台不一定都能执行
+
 **参数说明:**
 
 参数名称|参数说明
 --|:--:
 ‘express’|执行的表达式
-[c:]|执行表达式的 ClassLoader 的 hashcode，默认值是SystemClassLoader
+[-c hash值]|执行表达式的 ClassLoader 的 hashcode，默认值是SystemClassLoader
 [数字]|结果对象的展开层次，默认值1，不要太高
 
 **举例**
@@ -904,8 +906,8 @@ new java.lang.String("hello world")
 ---|:--:
 `class-pattern` |类名表达式匹配，支持全限定名，如com.taobao.test.AAA，也支持com/taobao/test/AAA格式.
 `method-pattern` |方法名表达式匹配
-[-d] |输出当前类的详细信息，包括这个类所加载的原始文件来源、类的声明、加载的 ClassLoader等详细信息.
-[-E] |regexp 开启正则表达式匹配，默认为通配符匹配
+[-d] |detail 输出当前类的详细信息，包括这个类所加载的原始文件来源、类的声明、加载的 ClassLoader等详细信息.
+[-E] |regexp 开启正则表达式匹配搜索，默认为通配符匹配
 [-f] |field 输出当前类的成员变量信息（需要配合参数-d一起使用）
 
 **举例:**
@@ -928,7 +930,7 @@ sc -df demo.MathGame
 
 ### 8.2 sm 搜索方法
 
->   ”Search-Method“的简写，搜索方法。但是sm 命令只能看到由当前类所声明 (declaring) 的方法，父类则无法看到。
+>   ”Search-Method“的简写，搜索方法。但是sm 命令只能看到由当前类所声明 (declaring) 的方法，父类的则无法看到。
 >
 >   这些属性和方法都能看到了。
 
@@ -938,8 +940,8 @@ sc -df demo.MathGame
 ---|:--:
 `class-pattern` |类名表达式匹配
 `method-pattern` |方法名表达式匹配
-[-d] |展示每个方法的详细信息
-[-E] |开启正则表达式匹配，默认为通配符匹配
+[-d] |detail 展示每个方法的详细信息
+[-E] |regexp 开启正则表达式匹配，默认为通配符匹配
 
 **案例：**
 
@@ -960,20 +962,21 @@ sm -d java.lang.String toString
 
 *   jad：反编译
 *   mc：编译
-*   redefin：把新生成的字节码文件在内存中执行
+*   redefine：把新生成的字节码文件在内存中执行
 
-这几个组合完成了一个功能
+这几个组合完成了一个功能。
 
->   看4章，第3节。
+>   jad反编译详细，看4章，第3节。
 
 ### 8.4 mc 编译
 
 >   mc（Memory Compiler）：内存编译器，编译.java文件成.class文件
 
 ```sh
-mc java文件路径
+# 编译并保存在默认路径：arthas的安装目录
+mc 要编译的java文件路径
 # 指定编译后文件所在目录
-mc -d 目录 .java文件路径
+mc -d 保存目录路径 要编译的java文件路径
 ```
 
 **案例**
@@ -1055,9 +1058,9 @@ redefine /root/demo/MathGame.class
 参数名称|参数说明
 ---|:--:
 class-pattern| 类名表达式匹配
-[-c:] |类所属 ClassLoader 的 hashcode
+[-c hash码] |类所属 ClassLoader 的 hashcode
 [-E] |开启正则表达式匹配，默认为通配符匹配
-**举例：**
+**举例：**|
 
 ```shell
 # 把String类的字节码文件保存到~/logs/arthas/classdump/目录下
@@ -1148,7 +1151,7 @@ classloader -c 70dea4e --load java.lang.String
 
 ### 9.1 monitor 方法调用统计
 
->   用来监视一个时间段中指定方法的执行次数，成功次数，失败次数，耗时等这些信息。
+>   用来监视一个时间段内指定方法的执行次数，成功次数，失败次数，耗时等这些信息。
 >
 >   监控指定类中方法执行情况，其是非实时监视的，其是不断的等待目标 Java 进程返回信息，直到用户输入 Ctrl+C 为止。
 
@@ -1187,11 +1190,11 @@ fail-rate |失败率
 ### 9.2 watch 实时观察方法调用
 
 >watch命令： 观察指定方法的调用情况。
->能观察到的范围：`入参` 、`返回值`、`抛出异常`、`出参`,通过编写OGNL 表达式进行对应变量的查看。
+>能观察到的范围：`入参` 、`返回值`、`抛出异常`、`出参`，通过编写ognl表达式进行对应变量的查看。
 >
 >出参：方法的入参传入后，在方法内部可能被修改，在方法出去后其与入参时不一样了。
 ```sh
-watch 包名.类名 方法名 ognl表达式 [其他参数]
+watch 包名.类名 方法名 ognl表达式 [条件表达式] [其他参数]
 ```
 
 watch 的参数比较多，主要是因为它能在 4 个不同的场景观察对象
@@ -1203,7 +1206,7 @@ watch 的参数比较多，主要是因为它能在 4 个不同的场景观察�
 class-pattern |类名表达式匹配
 method-pattern |方法名表达式匹配
 `{express}` |观察表达式(最重要，一般为ognl表达式)
-`condition-express` |条件表达式
+[`condition-express`] |条件表达式
 [-b] |before 在方法调用之前观察
 [-e] |exception 在方法异常之后观察
 [-s] |success 在方法返回之后观察
@@ -1229,9 +1232,9 @@ method-pattern |方法名表达式匹配
 
 >   ognl在watch中使用，watch是观察指定方法的调用情况，所以ognl表达式描述的是这个“方法”，如：入参params，返回值retureObj
 >
->   *   params：代表入参是一个数组（不知道就用其）
+>   *   params：代表入参是一个数组（不知道就用这个，一个参数也可以是数组）
 >
->   *   retureObj：代表返回值，一般和-x 一起用
+>   *   retureObj：代表返回值，一般和 -x 一起用
 >   *   target：表示执行方法的对象（当前调用该方法的对象）
 >
 >   单个：“params”
@@ -1256,7 +1259,7 @@ watch demo.MathGame primeFactors "{params,returnObj}" -x 2 -b
 ```
 ![输入图片说明](images/QQ截图20220118153102.png "QQ截图20201229183512.png")
 
-##### 3.观察方法调用前和方法返回
+##### 3. 观察方法调用前和方法返回
 
 ```shell
 # 参数里-n 2，表示只执行两次。结果中，
@@ -1343,7 +1346,7 @@ trace --skipJDKMethod false demo.MathGame run
 ```
 ![输入图片说明](images/QQ截图20220118154121.png "QQ截图20201229183512.png")
 
-#### 耗时过滤
+#### 条件表达式
 
 ```shell
 # 据调用耗时过滤，trace大于0.5ms的调用路径
@@ -1351,7 +1354,7 @@ trace demo.MathGame run '#cost > .5'
 ```
 ![输入图片说明](images/QQ截图20220118154204.png "QQ截图20201229183512.png")
 
-#### 正则
+#### 正则表达式
 
 ```shell
 # 可以用正则表匹配路径上的多个类和函数，一定程度上达到多层trace的效果。
@@ -1363,7 +1366,7 @@ trace -E com.test.ClassA|org.test.ClassB method1|method2|method3
 >
 >很多时候我们都知道一个方法被执行，但这个方法被执行的路径非常多，或者你根本就不知道这个方法是从那里被执行了，此时你需要的是 stack 命令。
 
-### 参数说明
+**参数说明**
 
 参数名称|参数说明
 ---|:--:
@@ -1448,22 +1451,24 @@ METHOD |执行的方法名
 
 条件表达式也是用 OGNL 来编写，核心的判断对象依然是 Advice 对象。除了 tt 命令之外，watch、trace、stack 命令也都支持条件表达式。
 
-* 解决方法重载
+#### 1. 解决方法重载
+
+*   参数个数不同时
 
 ```shell
 tt -t *Test print params.length==1
 ```
-* 通过制定参数个数的形式解决不同的方法签名，如果参数个数一样，你还可以这样写
+* 如果参数个数一样，可以这样写
 
 ```
 tt -t *Test print 'params[1] instanceof Integer'
 ```
-* 解决指定参数
+#### 2. 解决指定参数 
 
 ```
 tt -t *Test print params[0].mobile=="13989838402"
 ```
-### 检索调用记录
+### 10.2 检索调用记录
 
 当你用 tt 记录了一大片的时间片段之后，你希望能从中筛选出自己需要的时间片段，这个时候你就需要对现有记录进行检索。
 ```shell
@@ -1471,14 +1476,14 @@ tt -l
 ```
 ![输入图片说明](images/QQ截图20220118171351.png "QQ截图20201229183512.png")
 
-##### 需要筛选出 primeFactors 方法的调用信息
+#### 1. 筛选出指定方法的调用信息
 
 ```
 tt -s 'method.name=="primeFactors"'
 ```
 ![输入图片说明](images/QQ截图20220118171445.png "QQ截图20201229183512.png")
 
-### 查看调用信息
+#### 2. 查看指定记录的调用信息
 
 对于具体一个时间片的信息而言，你可以通过 -i 参数后边跟着对应的 INDEX 编号查看到他的详细信息。
 ```shell
@@ -1486,7 +1491,7 @@ tt -i 1002
 ```
 ![输入图片说明](images/QQ截图20220118171526.png "QQ截图20201229183512.png")
 
-### 重做一次调用
+#### 3. 重做一次调用
 
 当你稍稍做了一些调整之后，你可能需要前端系统重新触发一次你的调用，此时得求爷爷告奶奶的需要前端配合联调的同学再次发起一次调用。而有些场景下，这个调用不是这么好触发的。
 
@@ -1497,24 +1502,23 @@ tt -i 1002 -p
 ```
 ![输入图片说明](images/QQ截图20220118171605.png "QQ截图20201229183512.png")
 
+## 11，options 全局开关
 
->options 全局开关
+全局开关，对arthas全局设值，一般不需要调。
 
 名称|默认值|描述
 ---|:--:|---:
-内容|内容|内容
-内容|内容|内容
-unsafe |false |是否支持对系统级别的类进行增强，打开该开关可能导致把JVM搞挂，请慎重选择！
-dump |false |是否支持被增强了的类dump到外部文件中，如果打开开关，class文件会被dump到/${application dir}/arthas-class-dump/目录下，具体位置详见控制台输出
-batch-re-transform |true |是否支持批量对匹配到的类执行retransform操作
-json-format |false |是否支持json化的输出
-disable-sub-class |false |是否禁用子类匹配，默认在匹配目标类的时候会默认匹配到其子类，如果想精确匹配，可以关闭此开关
-debug-for-asm |false |打印ASM相关的调试信息
-save-result |false |是否打开执行结果存日志功能，打开之后所有命令的运行结果都将保存到~/logs/arthas-cache/result.log中
-job-timeout |1d |异步后台任务的默认超时时间，超过这个时间，任务自动停止；比如设置1d, 2h, 3m, 25s，分别代表天、小时、分、秒
-print-parent-fields |true| 是否打印在parent class里的filed
+unsafe|false|是否支持对系统级别的类进行增强，打开该开关可能导致把JVM搞挂，请慎重选择！
+ dump                | false  | 是否支持被增强了的类dump到外部文件中，如果打开开关，class文件会被dump到/${application dir}/arthas-class-dump/目录下，具体位置详见控制台输出 
+ batch-re-transform  |  true  |                  是否支持批量对匹配到的类执行retransform操作 
+ json-format         | false  |                                         是否支持json化的输出 
+ disable-sub-class   | false  | 是否禁用子类匹配，默认在匹配目标类的时候会默认匹配到其子类，如果想精确匹配，可以关闭此开关 
+ debug-for-asm       | false  |                                        打印ASM相关的调试信息 
+ save-result         | false  | 是否打开执行结果存日志功能，打开之后所有命令的运行结果都将保存到~/logs/arthas-cache/result.log中 
+ job-timeout         |   1d   | 异步后台任务的默认超时时间，超过这个时间，任务自动停止；比如设置1d, 2h, 3m, 25s，分别代表天、小时、分、秒 
+ print-parent-fields |  true  |                              是否打印在parent class里的filed 
 
-### 案例
+**案例**
 
 ```shell
 # 查看所有的 options
@@ -1534,21 +1538,22 @@ options save-result true
 ```
 ![输入图片说明](images/QQ截图20220118172425.png "QQ截图20201229183512.png")
 
-### 小结
+**小结**
+
 options的作用是：查看或设置arthas全局环境变量
 
->profiler  火焰图火焰图
+## 12，profiler  火焰图
 
 * profiler 命令支持生成应用热点的火焰图。本质上是通过不断的采样，然后把收集到的采样结果生成火焰图。
 * 命令基本运行结构是 profiler 命令 [命令参数]
+* 默认情况下，生成的是cpu的火焰图，即event为cpu。可以用--event参数来指定。
 
-### 案例
+**案例**
 
 ```shell
 # 启动 profiler
 profiler start
 ```
-##### 默认情况下，生成的是cpu的火焰图，即event为cpu。可以用--event参数来指定。
 ```shell
 # 显示支持的事件
 profiler list
@@ -1564,8 +1569,6 @@ profiler getSamples
 profiler status
 ```
 
-##### 可以查看当前profiler在采样哪种event和采样时间。
-
 ```shell
 # 停止 profiler 生成 svg 格式结果
 profiler stop
@@ -1575,33 +1578,37 @@ profiler stop
 # 默认情况下，生成的结果保存到应用的工作目录下的arthas-output目录。可以通过 --file参数来指定输出结果路径。比如：
 profiler stop --file /tmp/output.svg
 ```
-#### 生成 html 格式结果
+### 12.1 生成 html 格式结果
 
 ```shell
 # 默认情况下，结果文件是svg格式，如果想生成html格式，可以用--format参数指定：或者在--file参数里用文件名指名格式。比如--file /tmp/result.html 
 profiler stop --format html
 ```
 
-### 通过浏览器查看 arthas-output 下面的 profiler 结果
+### 12.2 浏览器查看 profiler 结果
 
-##### 默认情况下，arthas使用3658端口，则可以打开： http://localhost:3658/arthas-output/ 查看到arthas-output目录下面的profiler结果：
+>   默认情况下，arthas使用3658端口，则可以打开： http://localhost:3658/arthas-output/ 查看到arthas-output目录下面的profiler结果：
+
 ![输入图片说明](images/QQ截图20220118173237.png "QQ截图20201229183512.png")
 
-##### 点击可以查看具体的结果：
+点击可以查看具体的结果：
+
 ![输入图片说明](images/QQ截图20220118173310.png "QQ截图20201229183512.png")
-### 火焰图的含义
-* 火焰图是基于 perf 结果产生的SVG 图片，用来展示 CPU 的调用栈。
-    * y 轴表示调用栈，每一层都是一个函数。调用栈越深，火焰就越高，顶部就是正在执行的函数，下方都是它的父函数。
-    * x 轴表示抽样数，如果一个函数在 x 轴占据的宽度越宽，就表示它被抽到的次数多，即执行的时间长。注意，x 轴不代表时间，而是所有的调用栈合并后，按字母顺序排列的。
 
-##### 火焰图就是看顶层的哪个函数占据的宽度最大。只要有"平顶"（plateaus），就表示该函数可能存在性能问题。
+>   火焰图是基于 perf 结果产生的SVG 图片，用来展示 CPU 的调用栈。
+>
+>   * y 轴表示调用栈，每一层都是一个函数。调用栈越深，火焰就越高，顶部就是正在执行的函数，下方都是它的父函数。
+>   * x 轴表示抽样数，如果一个函数在 x 轴占据的宽度越宽，就表示它被抽到的次数多，即执行的时间长。注意，x 轴不代表时间，而是所有的调用栈合并后，按字母顺序排列的。
 
-##### 颜色没有特殊含义，因为火焰图表示的是 CPU 的繁忙程度，所以一般选择暖色调。
+火焰图就是看顶层的哪个函数占据的宽度最大。只要有"平顶"（plateaus），就表示该函数可能存在性能问题。
 
-### 小结
+颜色没有特殊含义，因为火焰图表示的是 CPU 的繁忙程度，所以一般选择暖色调。
+
+**小结:**
+
 profiler|命令作用
 ---|:--:
-profiler start |启动profiler，默认情况下，生成cpu的火焰图
+profiler start |启动profiler，默认情况下，生成cpu的火焰图``
 profiler list |显示所有支持的事件
 profiler getSamples |获取已采集的sample的数量
 profiler status |查看profiler的状态，运行的时间
