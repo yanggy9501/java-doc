@@ -98,7 +98,7 @@ public static void main(Stirng[] args) {
 
 >   泛型接口和泛型类的声明方式一致，泛型接口的具体类型需要在实现类中进行声明。
 
-#### 2.3.1 语法结构
+#### 语法结构
 
 ```java
 public interface 类名<泛型标识符号> {
@@ -136,5 +136,67 @@ public static void main(Stirng[] args) {
     Igeneric<Stirng> obj3 = new IgenericImpl();
     String name3 = obj3.getName("name");
 }
+```
+
+### 2.4 泛型方法
+
+>   泛型类在中所定义的泛型，在方法中也可以使用。但是，我们经常需要仅仅在某个方法上使用泛型，这个时候可以使用泛型方法。
+>
+>   泛型方法是指将方法的参数类型定义成泛型，以便在调用时候接收不同的类型的参数。类型可以由多个，用逗号隔开，如：<K, V>。
+>
+>   定义时，类型参数一般放在返回值前面。
+>
+>   调用不需要指定类型，编译器自己根据上下文推断出类型。
+
+#### 2.4.1 泛型实例方法
+
+##### 语法结构
+
+```java
+public <泛型符号> void getName(泛型符号 name){
+}
+----------------------------------------
+public <泛型符号> 泛型符号 getName(泛型符号 name){
+}
+```
+
+**示例：**
+
+```java
+public class MethodGeneric {
+    public <T> void getName(T name) {
+        System.out.println(name);
+    }
+    
+    public <T> T getName(T name) {
+        return name;
+    }
+}
+```
+
+#### 2.4.2 泛型静态方法 
+
+>   静态方法中使用泛型时有一种情况需要注意，那就是静态方法无法访问类上定义的泛型；如果静态方法操作的引用数据类型不确定的使用，必须要将泛型定义在静态方法上。
+
+##### 语法结构
+
+```java
+public static <泛型符号> void getName(泛型符号 name){
+}
+----------------------------------------
+public static <泛型符号> 泛型符号 getName(泛型符号 name){
+}
+```
+
+#### 2.4.3 泛型方法&可变参数
+
+>   在泛型方法中，泛型也可以定义可变参数。
+
+##### 语法格式
+
+```java
+public <泛型符号> void getName(泛型符号 ...args){
+}
+
 ```
 
