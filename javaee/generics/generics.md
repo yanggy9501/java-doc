@@ -200,3 +200,59 @@ public <泛型符号> void getName(泛型符号 ...args){
 
 ```
 
+### 2.5 泛型通配符和上下限定
+
+### 2.5.1 无界通配符
+
+>   ？表示泛型类型通配符，用于代替具体的类型。它只能在“<>”中使用，可以解决具体类型不确定的问题。
+>
+>   一般使用是存在泛型类的作为参数的地方。
+
+##### 语法结构
+
+```java
+public void showFlag<Gerneric<?> generic){
+    
+}
+```
+
+因为参数Gerneric的泛型是什么类型，在这个方法中是不确定所以使用？，若明确是某个确定类型则可以使用：
+
+```java
+public void showFlag<Gerneric<String> generic){
+    
+}
+```
+
+#### 2.5.2 通配符的上限定
+
+>   上限定表示`通配符的类型`是T类型以及T类的子类或者T接口以及T接口的子接口。即通配符有上界，只能其他类的“子类”。
+>
+>   如：`Generic<? extends Number> generic` 理解为泛型通配符extends某个类，？只能是其子类，方向上有界。
+>
+>   **ps**：同样适用其他泛型类
+
+##### 语法案例
+
+```java
+public void showFlag(Generic<? extends Number> generic) {
+    
+}
+```
+
+#### 2.5.3 通配符的下限定
+
+>   与上限定相反，通配符的下限定表示泛型的通配符是类型以及T类的父类或者T接口以及T接口的父接口。即通配符所表示的类有下届，只能是其他类的“父类”。
+>
+>   **ps：**不适用其他泛型类
+>
+>   ****
+
+##### 语法案例
+
+```java
+public void showFlag(Generic<? super Number> generic) {
+   
+}
+```
+
