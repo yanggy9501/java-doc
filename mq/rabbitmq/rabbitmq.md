@@ -24,7 +24,7 @@
 
 **PS**:  这些作用本质就是mq的跨进程的通信机制
 
-## 2，RabbitMQ  核心概念
+## 2，核心概念
 
 >   RabbitMQ 是一个消息中间件，主要作用就是接收消息，发送消息。
 
@@ -403,6 +403,8 @@ public class Work03 {
 
 ## 5，发布确认
 
+### 5.1 普通发布确认
+
 发布确认是保障消息不丢失的保障，但是发布确认默认是没有开启的，需要手动设置发布确认(调用方法)。
 
 **produce <--> switch**
@@ -412,7 +414,7 @@ Channel channel = connection.createChannel();
 channel.confirmSelect();
 ```
 
-### 5.1 单个确认
+#### 单个确认
 
 >   单个发布确认是`同步确认发布`的方式，`waitForConfirmsOrDie(long)`方法只有在消息被确认的时候才返回，如果在指定时间范围内这个消息没有被确认那么它将抛出异常。
 >
@@ -443,7 +445,7 @@ public static void publishMessageIndividually() throws Exception {
 }
 ```
 
-### 5.2 批量确认
+#### 批量确认
 
 >   先发布一批消息，然后一起确认(调用确认方法`channel.waitForConfirms()`)，可以极大地提高吞吐量。
 >
@@ -482,7 +484,7 @@ public static void publishMessageBatch() throws Exception {
     }
 ```
 
-### 5.3 异步确认
+####  异步确认
 
 >   异步确认虽然编程逻辑比上两个要复杂，但是性价比最高，利用回调函数来实现消息可靠性传递。
 >
@@ -559,6 +561,214 @@ public static void publishMessageAsync() throws Exception {
 **如何处理异步未确认消息?**
 
 ​		最好的解决的解决方案就是把未确认的消息放到一个基于内存的，能被发布线程访问的队列， 比如说用 ConcurrentLinkedQueue 这个队列在 confirm callbacks 与发布线程之间进行消息的传递。
+
+### 5.2 高级发布确认
+
+>   同样是生产者和交换机的确认机制，在生产环境中由于某些原因，导致 rabbitmq 重启，在重启期间生产者消息投递失败， 导致消息丢失，需要手动处理和恢复。如何才能保证消息可靠投递呢？
+
+#### 确认机制方案
+
+![image-20220402224937457](asserts/image-20220402224937457.png)
+
+#### 发布确认 springboot 版本
+
+##### 配置文件
+
+```properties
+spring.rabbitmq.host=localhost
+spring.rabbitmq.port=5672
+spring.rabbitmq.username=guest
+spring.rabbitmq.password=guest
+spring.rabbitmq.publisher-confirm-type=correlated # NONE:禁用发布确认模式，是默认值；CORRELATED：发布消息成功到交换器后会触发回调方法；SIMPLE：
+```
+
+##### 配置类
+
+```java
+@Configuration
+public class ConfirmConfig {
+    public static final String CONFIRM_EXCHANGE_NAME = "confirm.exchange";
+    public static final String CONFIRM_QUEUE_NAME = "confirm.queue";
+    //声明业务 Exchange
+    @Bean("confirmExchange")
+    public DirectExchange confirmExchange(){
+    	return new DirectExchange(CONFIRM_EXCHANGE_NAME);
+    }
+    // 声明确认队列 queue
+    @Bean("confirmQueue")
+    public Queue confirmQueue(){
+   		return QueueBuilder.durable(CONFIRM_QUEUE_NAME).build();
+    }
+    // 声明确认队列绑定关系
+    @Bean
+    public Binding queueBinding(@Qualifier("confirmQueue") Queue queue, @Qualifier("confirmExchange") DirectExchange exchange){
+    	return BindingBuilder.bind(queue).to(exchange).with("key1");
+    }
+}
+```
+
+##### 生产者
+
+>   rabbitTemplate.convertAndSend：发送消息
+>
+>   CorrelationData：消息
+
+```java
+@RestController
+@RequestMapping("/confirm")
+public class Producer {
+    public static final String CONFIRM_EXCHANGE_NAME = "confirm.exchange";
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+    @Autowired
+    private MyCallBack myCallBack;
+
+    //依赖注入 rabbitTemplate 之后再设置它的回调对象
+    @PostConstruct
+    public void init(){
+        rabbitTemplate.setConfirmCallback(myCallBack);
+    }
+
+    @GetMapping("sendMessage/{message}")
+    public void sendMessage(@PathVariable String message){
+        // 指定消息 id 为 1
+        CorrelationData correlationData1 = new CorrelationData("1");
+        String routingKey="key1";
+        rabbitTemplate.convertAndSend(CONFIRM_EXCHANGE_NAME,routingKey,message+routingKey,correlationData1);
+        CorrelationData correlationData2=new CorrelationData("2");
+        routingKey="key2";
+        rabbitTemplate.convertAndSend(CONFIRM_EXCHANGE_NAME,routingKey,message+routingKey,correlationData2);
+    }
+}
+```
+
+##### 回调接口
+
+>   所有回调接口
+
+```java
+@Component
+@Slf4j
+public class MyCallBack implements RabbitTemplate.ConfirmCallback {
+    /**
+    * 交换机不管是否收到消息的一个回调方法
+     * CorrelationData
+    * 消息相关数据
+     * ack
+    * 交换机是否收到消息
+     */
+    @Override
+    public void confirm(CorrelationData correlationData, boolean ack, String cause) {
+        String id=correlationData!=null?correlationData.getId():"";
+        if(ack){
+        	log.info("交换机已经收到 id 为:{}的消息",id);
+        }else{
+        	log.info("交换机还未收到 id 为:{}消息,由于原因:{}",id,cause);
+        }
+    }
+}
+
+```
+
+##### 消费者
+
+```java
+@Component
+@Slf4j
+public class ConfirmConsumer {
+    public static final String CONFIRM_QUEUE_NAME = "confirm.queue";
+    @RabbitListener(queues =CONFIRM_QUEUE_NAME)
+    public void receiveMsg(Message message) { 
+        String msg=new String(message.getBody());
+    	log.info("接受到队列 confirm.queue 消息:{}",msg);
+    }
+}
+```
+
+### 5.3 消息回退
+
+>   在仅开启了生产者确认机制的情况下，交换机接收到消息后，会直接给消息生产者发送确认消息，如果发现该消息不可路由，那么消息会被直接丢弃，此时生产者是不知道消息被丢弃这个事件的。通过设置 **mandatory** 参数可以在当消息传递过程中不可达目的地时将消息返回给生产者。
+>
+>   生产者设置：rabbitTemplate.setMandatory(true);
+
+**生产者**
+
+````java
+@Slf4j
+@Component
+public class MessageProducer implements RabbitTemplate.ConfirmCallback, RabbitTemplate.ReturnCallback {
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+    // rabbitTemplate 注入之后就设置该值
+    @PostConstruct
+    private void init () {
+        rabbitTemplate.setConfirmCallback(this);
+        /**
+         * true：交换机无法将消息进行路由时，会将该消息返回给生产者
+         * false：如果发现消息无法进行路由，则直接丢弃
+         */
+        rabbitTemplate.setMandatory(true);
+        // 设置回退消息交给谁处理
+        rabbitTemplate.setReturnCallback(this);
+    }
+    @GetMapping("sendMessage")
+    public void sendMessage (String message){
+        // 让消息绑定一个 id 值
+        CorrelationData correlationData1 = new CorrelationData(UUID.randomUUID().toString());
+        rabbitTemplate.convertAndSend("confirm.exchange", "key1", message + "key1", correlationData1);
+        log.info("发送消息 id 为:{}内容为{}", correlationData1.getId(), message + "key1");
+        CorrelationData correlationData2 = new CorrelationData(UUID.randomUUID().toString());
+        rabbitTemplate.convertAndSend("confirm.exchange", "key2", message + "key2", correlationData2);
+        log.info("发送消息 id 为:{}内容为{}", correlationData2.getId(), message + "key2");
+    }
+    @Override
+    public void confirm (CorrelationData correlationData,boolean ack, String cause) {
+        String id = correlationData != null ? correlationData.getId() : "";
+        if (ack) {
+            log.info("交换机收到消息确认成功, id:{}", id);
+        } else {
+            log.error("消息 id:{}未成功投递到交换机,原因是:{}", id, cause);
+        }
+    }
+    @Override
+    public void returnedMessage (Message message,int replyCode, String replyText, String exchange, String routingKey) {
+        log.info("消息:{}被服务器退回，退回原因:{}, 交换机是:{}, 路由 key:{}", 
+            new String(message.getBody()), replyText, exchange, routingKey);
+    }
+}
+````
+
+**回调接口**
+
+```java
+@Component
+@Slf4j
+public class MyCallBack implements
+    RabbitTemplate.ConfirmCallback,RabbitTemplate.ReturnCallback {
+    /**
+     * 交换机不管是否收到消息的一个回调方法
+     * CorrelationData
+     * 消息相关数据
+     * ack
+     * 交换机是否收到消息
+     */
+    @Override
+    public void confirm(CorrelationData correlationData, boolean ack, String cause) {
+        String id=correlationData!=null?correlationData.getId():"";
+        if(ack){
+            log.info("交换机已经收到 id 为:{}的消息",id);
+        }else{
+            log.info("交换机还未收到 id 为:{}消息,由于原因:{}",id,cause);
+        }
+    }
+    //当消息无法路由的时候的回调方法
+    @Override
+    public void returnedMessage(Message message, int replyCode, String replyText, String exchange, String routingKey) {
+        log.error(" 消 息 {}, 被 交 换 机 {} 退 回 ， 退 回 原 因 :{}, 路 由 key:{}",new 
+            String(message.getBody()),exchange,replyText,routingKey);
+    }
+}
+```
 
 
 
@@ -813,6 +1023,51 @@ public class EmitLog {
 channel.basicPublish(EXCHANGE_NAME,bindingKey, null, message.getBytes("UTF-8"));
 ```
 
+### 6.6 备份交换机
+
+>   有了 mandatory 参数和回退消息，可以感知感知无法投递消息的能力，有机会在生产者的消息无法被投递时发现并处理。
+>
+>   什么是备份交换机呢？
+>
+>   备份交换机可以理解为 RabbitMQ 中交换机的“备胎”，当交换机接收到一条不可路由消息时，将会把这条消息转发到备份交换机中，由备份交换机来进行转发和处理，通常备份交换机的类型为 Fanout。
+
+![image-20220403103142485](asserts/image-20220403103142485.png)
+
+**修改配置类：**
+
+```java
+//声明备份 Exchange
+@Bean("backupExchange")
+public FanoutExchange backupExchange(){
+	return new FanoutExchange(BACKUP_EXCHANGE_NAME);
+}
+// 声明备份队列
+ @Bean("backQueue")
+public Queue backQueue(){
+	return QueueBuilder.durable(BACKUP_QUEUE_NAME).build();
+}
+
+// 声明备份队列绑定关系
+@Bean
+public Binding backupBinding(@Qualifier("backQueue") Queue queue, @Qualifier("backupExchange") FanoutExchange backupExchange){
+	return BindingBuilder.bind(queue).to(backupExchange);
+}
+
+//声明确认 Exchange 交换机的备份交换机
+@Bean("confirmExchange")
+public DirectExchange 
+confirmExchange(){
+    ExchangeBuilder exchangeBuilder = ExchangeBuilder.directExchange(CONFIRM_EXCHANGE_NAME).durable(true)
+		//设置该交换机的备份交换机
+ 		.withArgument("alternate-exchange", BACKUP_EXCHANGE_NAME);
+	return (DirectExchange)exchangeBuilder.build();
+}
+```
+
+
+
+
+
 ## 7，死信队列
 
 >   ​		死信，顾名思义就是无法被消费的消息。
@@ -829,8 +1084,8 @@ channel.basicPublish(EXCHANGE_NAME,bindingKey, null, message.getBytes("UTF-8"));
 
 ### 7.1 死信来源
 
-*   消息 TTL 过期（消息过期）
-*   队列已满（队列无法在接收新任务）
+*   消息 TTL 过期（消息过期，需要设置消息过期时间）
+*   队列已满（队列无法在接收新任务，需要设置队列长度）
 *   消息被拒绝（消息被消费者拒绝，如：(basic.reject 或 basic.nack）
 
 ### 7.2 TTL过期
@@ -940,3 +1195,82 @@ public class Producer {
 ```
 
 ### 7.4 消息被拒
+
+>   代码，参考消息应答
+
+## 8，延迟队列
+
+## 9, 补充知识
+
+### 9.1 幂等性
+
+>   **幂等性**：用户对于同一操作发起的一次请求或者多次请求的结果是一致的，不会因为多次点击而产生了副作用。
+
+`解决方案：` 
+
+在以前的单应用系统中，我们只需要把数据操作放入事务中即可，发生错误立即回滚，但是再响应客户端的时候也有可能出现网络中断或者异常等等
+
+#### 9.1.1 消息重复消费
+
+>   消费者在消费 MQ 中的消息时，MQ 已把消息发送给消费者，消费者在给MQ 返回 ack 时网络中断， 故 MQ 未收到确认信息，该条消息会重新发给其他的消费者或者在网络重连后再次发送给该消费者。
+>
+>   总结：就是broker没收到consumer的ack确认信息，将消息在发给其他消费者。
+
+`解决方案：`
+
+MQ 消费者的幂等性的解决一般使用全局 ID 或者唯一标识如：uuid，或其他标识，每次消费消息时用该 id 先判断该消息是否已消费过。
+
+业界主流的幂等性有两种操作:
+
+ a. 唯一 ID+指纹码机制,利用数据库主键去重,
+
+ b.利用 redis 的原子性去实现
+
+##### 唯一ID+指纹码机制
+
+>   **指纹码**:我们的一些规则或者时间戳加别的服务给到的唯一信息码,它并不一定是我们系统生成的，基本都是由我们的业务规则拼接而来，但是一定要保证唯一性，然后就利用查询语句进行判断这个 id 是否存在数据库中，，然后查询判断是否重复。
+>
+>   缺点：高并发时，性能瓶颈
+
+##### Redis 原子性 
+
+>   利用 redis 执行 setnx 命令，天然具有幂等性。从而实现不重复消费
+
+### 9.2 优先队列 
+
+>   给予某些消息以优先处理。
+>
+>   注意事项：
+>
+>   要让队列实现优先级需要做的事情有如下事情
+>
+>   1.   队列需要设置为优先级队列
+>   2.   消息需要设置消息的优先级
+>   3.   消费者需要等待消息已经发送到队列中才去消，因为这样才有机会对消息进行排序
+
+**控制台添加优先级**
+
+![image-20220403105203073](asserts/image-20220403105203073.png)
+
+**队列添加优先级**
+
+声明优先级队列
+
+```java
+Map<String, Object> params = new HashMap();
+params.put("x-max-priority", 10);
+channel.queueDeclare("hello", true, false, false, params);
+```
+
+**消息添加优先级**
+
+给消息赋予一个 priority 属性
+
+```java
+AMQP.BasicProperties properties = new AMQP.BasicProperties().builder().priority(5).build();
+//......
+channel.basicPublish("", QUEUE_NAME, properties, message.getBytes());
+```
+
+## 10 rabbitmq集群
+
