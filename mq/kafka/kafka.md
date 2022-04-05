@@ -1,4 +1,4 @@
-# kafka
+kafka
 
 ## 1，kafka 概述
 
@@ -11,7 +11,7 @@
 
 ### 1.1 发布订阅模式
 
-Pub/Sub模式，包含主题（Topic相当队列），发布者（Publisher即生产者producer），订阅者（Subscriber即消费者）多个发布者将消息发送到Topic，系统将这些消息传递给多个订阅者。
+Pub/Sub模式，包含主题（Topic中partition相当队列），发布者（Publisher即生产者producer），订阅者（Subscriber即消费者）多个发布者将消息发送到Topic，系统将这些消息传递给多个订阅者。
 
 >   发布/订阅模式是一对多关系，生产消息后，推送给所有订阅者，消费者消费消息之后不会删除消息。
 
@@ -23,8 +23,8 @@ Pub/Sub模式，包含主题（Topic相当队列），发布者（Publisher即�
 
 ![](asserts/ccea365fb6f7b73e9572dec7af7d1992.png)
 
-*   Producer ：消息生产者或说发布者，发布消息到topic中
-*   Consumer ：消息消费者或是订阅者(应该说是消费者组订阅topic)，从topic中消费消息
+*   Producer ：消息生产者或说发布者，发布消息到topic中（partition中）
+*   Consumer ：消息消费者或是订阅者(应该说是消费者组订阅topic)，消费topic中特定分区消息
 *   Topic：是消息的分类，可以理解为一个队列，生产者和消费者面向的都是一个 topic
 *   Partition：分区，一个topic可以分为多个partition分布到多个broker上，每个partition是一个有序的队列（为实现扩展）
     *   **方便扩展**：可以通过扩展机器去轻松的应对日益增长的数据量
@@ -41,7 +41,7 @@ Pub/Sub模式，包含主题（Topic相当队列），发布者（Publisher即�
 
 #### 1.3.1 broker注册
 
->   kafka是集群部署的，如何知道集群中broker节点是否还存活呢？
+>   kafka是集群部署的，如何知道集群中broker节点有几个，是否还存活呢？
 >
 >   zookeeper将整个集群中的Broker管理起来，用来进行Broker服务器列表记录的节点，保存每个Broker的IP地址和端口信息。
 >
@@ -190,7 +190,7 @@ vim /etc/profile.d/my_env.sh
 
 ```sh
 # KAFKA_HOME
-export KAFKA_HOME=/opt/module/kafka
+export KAFKA_HOME=/xxx/kafka
 export PATH=$PATH:$KAFKA_HOME/bin
 ```
 
@@ -323,7 +323,7 @@ topic有多个partition，当producer发布消息时，消息保存到哪个分�
 >   *    不指定partition：如果没有指定partition，但是设置了数据的key，则会根据key的值hash出一个partition
 >   *    不指定partition：如果既没指定partition，又没有设置key，则会轮询选出一个partition。
 
-#### 4.1.2 保证消息不丢失
+#### 4.1.2 消息发布确认
 
 >   保证消息不丢失是一个消息队列中间件的基本保证，kafka如何保证？
 >
@@ -340,3 +340,421 @@ topic有多个partition，当producer发布消息时，消息保存到哪个分�
 ------------------------------------------------
 ### 4.2 文件存储机制
 
+>   Producer将数据发布到kafka后，集群就需要对数据进行保存写入磁盘，Kafka顺序写入数据（效率比随机写入高），并且是多个节点同时工作的效率很高。
+>
+>   每个topic可以有多个分区，每个分区是一个集群，有1个leader和多个follower（副本）。
+
+****
+
+​		topic 是逻辑上的概念（多个partition组成一个topic，数据存储在partition中），而 partition 是物理上的概念，`每个 partition 对应于一个 log 文件(即数据文件)`，该 log 文件中存储的就是 producer 生产的数据。
+
+ 		Producer 生产的数据会被不断追加到该log 文件末端，且每条数据都有自己的 offset**。 **消费者组中的每个消费者（消费特定分区）， 都会实时记录自己消费到（该分区）哪个 offset（在kafka中记录），以便出错恢复时，从上次的位置继续消费。
+
+****
+
+**为防止log文件过大导致数据定位效率低下，kafka做了分片和索引机制，如下：**
+
+*   每个`partition`分为多个`segments`（章节）
+*   每个`segments`对应两个文件，两个文件成对出现，如：000000000.index，000000000.log
+    *   xxx.index（索引文件，记录序号i和对应的第i条信息的地址位置）
+    *   xxx.log（数据文件，根据索引文件的消息偏移量查找消息数据）
+*   这些文件位于一个partition文件夹下，partition文件夹的命名规则为：topic主题名 + 分区序号，如first-0
+
+​		![](asserts/407a1871eef17f7e002148bfc12c3ad8.png)
+
+### 4.3 副本机制
+
+>   副本机制保证集群中的某个节点发生故障时数据不丢失（提供数据冗余），一个topic由可有多个副本，一个 leader 和若干个 follower。
+>
+>   注意：副本保存在不同的broker上，若是同一个就没有意义了。
+
+#### 4.3.1 副本工作原理
+
+follower拉起leader，producer和consumer只与这个leader交互，其它replication作为follower从leader 中复制数据。
+
+![](asserts/a799af3b4ecd271544dfaadfd5ba5c7c.png)
+
+*   follower唯一任务就是同步leader
+*   leader所在broker宕机后，选举一个follower称为新的leader（依托zookeeper的监控）
+
+#### 4.3.2 follower同步条件
+
+>   Kafka 引入了 In-sync Replicas，即 ISR 副本集合，ISR 中的副本都是与 Leader 同步的副本，相反，不在 ISR 集中就被认为是与 Leader 不同步。
+>
+>   **注意**：ISR 包含leader，且是一个动态调整的集合
+
+##### 是否同步的依据是什么？
+
+​	Broker 端replica.lag.time.max.ms 参数（Follower 副本能够落后 Leader 副本的最长时间间隔）值来控制哪个追随者副本与 Leader 同步，只要在这个范围内就是同步的。
+
+
+
+##### 副本如何选举？
+
+**kafka leader副本所在broker挂了，leader副本如何选举**
+
+*   ISR不为空，从ISR中选举
+*   ISR为空，Kafka也可以从不在 ISR 中的存活副本中选举（有数据一致性，数据丢失问题，强烈建议不要开启）
+
+### 4.4 消息删除机制
+
+无论消息是否被消费，kafka都会保留所有消息，但是不能永无止境的只追加迟早磁盘不够用的，因此，kafka提供两种数据删除策略：
+
+*   基于时间：log.retention.hours=168 （7天）
+*   基于大小：log.retention.bytes=1073741824
+
+**ps**：因为Kafka读取特定消息的时间复杂度为O(1)，即与文件大小无关，所以这里删除过期文件与提高 Kafka 性能无关。
+
+### 4.5 写入流程
+
+>   消息由producer发送大broker，broker还需要将消息写入文件中，producer是面向topic的或者说是partition的，而partition是存在某台broker上的，所以写入流程如下：
+
+1.   producer发送消息时，先计算partition，后从zookeeper节点找到该partition的leader（即副本的leader）
+2.   producer将消息发送给该leader
+3.   leader将消息写入本地log（其实时segments中的index和log文件）
+4.   followers从leader pull消息，写入本地log后向leader发送ACK
+5.   leader收到所有ISR中的replication的ACK后，增加HW（high watermark，最后commit 的offset）并向producer发送ACK
+
+### 4.6 消费消息
+
+消费者消费消息同样是面向topic，找leader。
+
+**补充**
+
+```markdown
+push模式很难适应消费速率不同的消费者，因为消息发送速率是由broker决定的。push模式的目标是尽可能以最快速度传递消息，但是这样很容易造成消费者来不及处理消息，典型的表现就是拒绝服务以及网络拥塞。
+
+而pull模式则可以根据consumer的消费能力以适当的速率消费消息。
+
+pull模式，如果broker没有数据，消费者会轮询，忙等待数据直到数据到达，为了避免这种情况，我们允许消费者在pull请求时候使用“long poll”进行阻塞，直到数据到达 。
+```
+
+>   多个消费者可以组成一个消费者组（consumer group），每个消费者组都有一个组id，同一个消费组者的消费者可以消费同一topic下不同分区的数据，但是不存在组内多个消费者消费同一分区的数据。
+>
+>   **ps：**建议消费者组的consumer的数量与partition的数量一致！
+
+![](asserts/0560833a6f6bcd1bc11c3027da459b8e.png)
+
+#### 消费消息过程？
+
+假如现在需要查找一个offset为368801的message是什么样的过程呢？
+
+![](asserts/5fc418f3f137bb04f095fbb3b438274e.png)
+
+1.   先确定的partition（计算要消费哪个partition的数据）
+
+2.   先找到offset的368801message所在的segment文件（利用二分法查找），这里找到的就是在第二个segment文件（由于index文件名是根据最后一次commit的偏移量命名，其是一个定位信息）
+
+3.   打开找到的segment中的`.index`文件（该文件起始偏移量为368796+1，368796+5=368801，所以相对offset为5），但是文件采用的是稀疏索引（多个分区，单个分区索引不连续），利用二分法查找相对offset小于或者等于指定的相对offset的索引条目中最大的那个相对offset，所以找到的是相对offset为4的这个索引。
+
+4.   根据找到的相对offset为4的索引确定message存储的物理偏移位置为256
+
+5.   打开数据文件，从位置为256的那个地方开始顺序扫描直到找到offset为368801的那条Message
+
+     总结：就是找消息的起始和结束位置
+
+**ps**：**segment**+**有序offset**+**稀疏索引**+**二分查找**+**顺序查找**
+
+### 4.7 kafka事务
+
+## 5，AdminClient API
+
+**依赖**
+
+```xml
+<dependency>
+    <groupId>org.apache.kafka</groupId>
+    <artifactId>kafka-clients</artifactId>
+</dependency>
+```
+
+>   **AdminClient API**：允许管理和检测Topic、broker以及其他Kafka实例，与Kafka自带的脚本命令作用类似。
+
+| API                   | 作用               |
+| --------------------- | ------------------ |
+| AdminClient           | 客户端对象         |
+| NewTopic              | 创建主题           |
+| CreateTopicsResult    | 创建主题的返回结果 |
+| ListTopicsOptions     | 查询主题列表       |
+| ListTopicsOptions     | 查询主题列表及选项 |
+| DescribeOptionsResult | 查询主题           |
+| DescribeConfigsResult | 查询主题配置项     |
+
+### 5.1 AdminClient API案例
+
+#### 创建AdminClient
+
+```java
+public static AdminClient adminClient(){
+    Properties properties = new Properties();
+    properties.setProperty(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,"kafka1:9092");
+    AdminClient adminClient = AdminClient.create(properties);
+    return adminClient;
+}
+```
+
+#### 创建topic
+
+```java
+ public static void createTopic() {
+     // 连接kafka
+     AdminClient adminClient = adminClient();
+     // 副本因子
+     Short rs = 1;
+     // 创建topic，topic有分区和副本
+     NewTopic newTopic = new NewTopic(TOPIC_NAME, 1 , rs);
+     CreateTopicsResult topics = adminClient.createTopics(Arrays.asList(newTopic));
+     adminClient.close();
+ }
+```
+
+#### topic列表
+
+```java
+/**
+ * 获取topic列表
+ */
+public static void topicList() throws Exception {
+    AdminClient adminClient = adminClient();
+
+    //是否查看Internal选项
+    ListTopicsOptions options = new ListTopicsOptions();
+    options.listInternal(true);
+
+    //ListTopicsResult listTopicsResult = adminClient.listTopics();
+    ListTopicsResult listTopicsResult = adminClient.listTopics(options);
+    Set<String> names = listTopicsResult.names().get();
+
+    //打印names
+    names.stream().forEach(System.out::println);
+
+    Collection<TopicListing> topicListings = listTopicsResult.listings().get();
+    //打印TopicListing
+    topicListings.stream().forEach((topicList) -> {
+        System.out.println(topicList.toString());
+    });
+    adminClient.close();
+}
+```
+
+#### 删除topic
+
+```java
+/**
+ * 删除topic
+ */
+public static void delTopic() throws Exception {
+    AdminClient adminClient = adminClient();
+    DeleteTopicsResult deleteTopicsResult = adminClient.deleteTopics(Arrays.asList(TOPIC_NAME));
+    deleteTopicsResult.all().get();
+}
+```
+
+#### topic详情
+
+```java
+/**
+ * 描述topic
+ */
+public static void describeTopic() throws Exception {
+    AdminClient adminClient = adminClient();
+    DescribeTopicsResult describeTopicsResult = adminClient.describeTopics(Arrays.asList(TOPIC_NAME));
+    Map<String, TopicDescription> descriptionMap = describeTopicsResult.all().get();
+    descriptionMap.forEach((key,value) -> {
+        System.out.println("name: " + key+" desc: " + value);
+    });
+}
+```
+
+#### 修改配置信息
+
+```java
+/**
+ * 修改配置信息 新版API
+ */
+public static void alterConfig2() throws Exception {
+    AdminClient adminClient = adminClient();
+    Map<ConfigResource, Collection<AlterConfigOp>> configMap = new HashMap<>();
+    ConfigResource configResource = new ConfigResource(ConfigResource.Type.TOPIC,TOPIC_NAME);
+    AlterConfigOp alterConfigOp = new AlterConfigOp(new ConfigEntry("preallocate","false"),AlterConfigOp.OpType.SET);
+    configMap.put(configResource,Arrays.asList(alterConfigOp));
+    AlterConfigsResult alterConfigsResult = adminClient.incrementalAlterConfigs(configMap);
+    alterConfigsResult.all().get();
+}
+```
+
+#### 增加分区数量
+
+```java
+private static final String TOPIC_NAME = "yibo_topic";
+
+/**
+ * 增加partitions数量
+ * @param partitions
+ * @throws Exception
+ */
+public static void incrPartitions(int partitions) throws Exception {
+    AdminClient adminClient = adminClient();
+    Map<String,NewPartitions> partitionsMap = new HashMap<>();
+    NewPartitions newPartitions = NewPartitions.increaseTo(partitions);
+    partitionsMap.put(TOPIC_NAME,newPartitions);
+    CreatePartitionsResult partitionsResult = adminClient.createPartitions(partitionsMap);
+    partitionsResult.all().get();
+}
+```
+
+### 5.2 springboot 整合
+
+#### kafka 客服端属性
+
+```java
+@Component
+public class KafkaConfig{
+
+    // 配置Kafka
+    public Properties getProps(){
+        Properties props = new Properties();
+        // kafka 服务地址
+        props.put("bootstrap.servers", "localhost:9092");
+        /*    props.put("retries", 2); // 重试次数
+        props.put("batch.size", 16384); // 批量发送大小
+        props.put("buffer.memory", 33554432); // 缓存大小，根据本机内存大小配置
+        props.put("linger.ms", 1000); // 发送频率，满足任务一个条件发送*/
+        // key序列化器
+        props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        // value序列化器
+        props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        return props;
+    }
+}
+```
+
+#### kafka 配置类
+
+```java
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.kafka.core.KafkaAdmin;
+ 
+import java.util.HashMap;
+import java.util.Map;
+ 
+@Configuration
+public class KafkaInitialConfiguration {
+
+    /**
+    * AdminClient 管理客服端
+    */
+    @Bean
+    public AdminClient adminClient() {
+        return AdminClient.create(kafkaAdmin().getConfig());
+    }
+}
+
+```
+
+#### 操作封装
+
+```java
+import org.apache.kafka.clients.admin.*;
+import org.apache.kafka.common.KafkaFuture;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+ 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+ 
+ 
+/**
+ * @Describe 主题操作控制类
+ */
+@Service
+public class KafkaConsole {
+    @Autowired
+    private AdminClient adminClient;
+    
+     /**
+     * 创建主题
+     */
+    public void create(String topic, int partitions, int replication, Map<String, String> configs) throws Exception {
+        // 为了兼容性增加一层副本系数和节点数量的判断
+        if (replication > getBrokerNums()) {
+            throw new RuntimeException("副本系数不能大于broker节点数量"); 
+        }
+        short replication_short = (short) replication;
+        NewTopic newTopic = new NewTopic(topic, partitions, replication_short);
+        // 创建主题的相关配置
+        if (null != configs && configs.size() > 0) {
+            newTopic.configs(configs);
+        }
+        CreateTopicsResult result = adminClient.createTopics(Arrays.asList(newTopic));
+        result.all().get(timeout, TimeUnit.SECONDS);
+    }
+    
+    /**
+     * 主题列表
+     */
+    public Set<String> list() throws Exception {
+        ListTopicsResult listTopicsResult = adminClient.listTopics();
+        // Set<String> topics = listTopicsResult.names().get();
+        Set<String> topics = listTopicsResult.names().get(timeout, TimeUnit.SECONDS);
+
+        return topics;
+    }
+ 	
+     /**
+     * 修改主题
+     */
+    public void update(String topic, List<AlterConfigOp> alterConfigOps) throws Exception {
+    ConfigResource resource = new ConfigResource(ConfigResource.Type.TOPIC, topic);
+    Map<ConfigResource, Collection<AlterConfigOp>> configs = new HashMap<>();
+    configs.put(resource, alterConfigOps);
+    adminClient.incrementalAlterConfigs(configs).all().get(timeout, TimeUnit.SECONDS);
+}
+    
+    /**
+     * 返回主题的信息
+     */
+    public KafkaFuture<Map<String, TopicDescription>> describeTopicInfo(String topicName) {
+        DescribeTopicsResult result = adminClient.describeTopics(Arrays.asList(topicName));
+        KafkaFuture<Map<String, TopicDescription>> all = result.all();
+        return all;
+    }
+ 	
+     /**
+     * 删除主题
+     */
+    public void delete(String topic) throws Exception {
+        // 服务端server.properties需要设置delete.topic.enable=true，才可以使用同步删除，否则只是将主题标记为删除
+        adminClient.deleteTopics(Arrays.asList(topic));
+    }
+
+     /**
+     * 增加某个主题的分区（注意分区只能增加不能减少）
+     */
+    public void editTopicPartition(String topicName,Integer number){
+        Map<String, NewPartitions> newPartitions=new HashMap<String, NewPartitions>();
+        //创建新的分区的结果
+        newPartitions.put(topicName,NewPartitions.increaseTo(number));
+        adminClient.createPartitions(newPartitions);
+    }
+ 	
+    /**
+     * 列出主题所有分区
+     */
+    public List<Integer> partitions(String topic) throws Exception {
+        List<TopicPartitionInfo> partitionInfos = describe(topic).partitions();
+        List<Integer> result = new ArrayList<>();
+        for (TopicPartitionInfo partitionInfo : partitionInfos) {
+            result.add(partitionInfo.partition());
+        }
+        return result;
+    }
+}
+```
+
+## 6，Producer API

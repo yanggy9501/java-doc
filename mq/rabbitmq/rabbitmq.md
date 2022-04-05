@@ -4,7 +4,7 @@
 
 ### 1.1 mq 作用
 
->   mq是一个存储消息的数据结构-队列，其还是一种跨进程的通信机制，用于上下游传递消息服务。
+>   mq是一个存储消息的数据结构-队列，其还是一种跨进程的通信机制，用于上下游的消息传递服务。
 >
 >   概况作用：`跨进程的通信机制`
 
@@ -60,9 +60,9 @@
 *   **virtual host：**逻辑上的主机划分，将一台mq服务器逻辑分成多个，以供不同用户或应用使用。
 *   **connection**：publisher／consumer 和 broker 之间的 TCP 连接
 *   **channel：** Channel 是在 connection 内部建立的逻辑连接
-*   **exchange**：rabbitmq特有组件，根据分发规则（routing-key），将消息分发到不同队列中
-*   **queue：**存储消息的最终载体，存储消息并等待消息被consumer取走
-*   **binding**：exchange和queue之间的虚拟连接，binding 中可以包含 routing key，Binding 信息被保存到 exchange 中的查询表中，用于 message 的分发
+*   **exchange**：rabbitmq特有组件，根据分发规则（routing-key），将消息路由到不同队列中
+*   **queue：**存储消息的数据结构，存储消息并等待消息被consumer取走，因此消费端面对的是队列。
+*   **binding**：exchange和queue之间的虚拟连接，binding 中可以包含 routing key，Binding 信息被保存到 exchange 中的查询表中，用于 message 的分发。
 
 ### 2.3 安装
 
@@ -82,23 +82,43 @@ url：http://localhost:15672
 
 默认账号密码：guest
 
+**3.端口**
+
+*   4369, 25672 (Erlang发现&集群端口)
+
+*   **5672, 5671** (AMQP端口)
+
+*   **15672** (web管理后台端口)
+
+*   61613, 61614 (STOMP协议端口)
+
+*   1883, 8883 (MQTT协议端口)
+
 ## 3，rabbitmq使用
 
 **pom依赖**
 
 ```xml
-<!--rabbitmq 依赖客户端-->
+<!-- rabbitmq 客户端依赖 -->
 <dependency>
     <groupId>com.rabbitmq</groupId>
     <artifactId>amqp-client</artifactId>
+</dependency>
+
+<!-- rabbitmq springboot 客户端依赖 -->
+<dependency>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-amqp</artifactId>
 </dependency>
 ```
 
 ### 3.1 hello world简单模式
 
->   该模式比较简单，生产者和消费这之间是一对一关心，消息生成把消息之间传递给队列，消息消费者之间中队列取消息（其实存在默认交换机的）。
+>   该模式比较简单，生产者和消费这之间是**`一对一关系`**，消息生成把消息之间传递给队列，消息消费者之间中队列取消息（其实存在默认交换机的）。
 >
->   *   生成这之间发消息给队列
+>   *   生产者之间将消息发送给队列，消费者直接从队列中获取消息
+>   *   使用的是默认交换机，所以queue与exchange不需要绑定
+>   *   一对一关系，一个队列一个消费者
 
 ![image-20220329235527818](asserts/image-20220329235527818.png)
 
@@ -107,7 +127,7 @@ url：http://localhost:15672
 ```java
 public class Producer {
     /**
-    * 队列
+    * 队列，helloworld模式就是队列
     */
     private final static String QUEUE_NAME = "hello";
     public static void main(String[] args) throws Exception {
@@ -119,20 +139,20 @@ public class Producer {
         // channel 实现了自动 close 接口自动关闭不需要显示关闭
         try(Connection connection = factory.newConnection(); Channel channel = Channelconnection.createChannel()) {
             /**
-             * 生成一个队列
+             * 生成一个队列（无就创建，有则使用旧的）
              * 1.队列名称
-             * 2.队列里面的消息是否持久化 默认消息存储在内存中
+             * 2.队列里面的消息是否持久化，默认消息存储在内存中，关闭服务时小时
              * 3.该队列是否只供一个消费者进行消费，是否进行共享 true 可以多个消费者消费
-             * 4.是否自动删除 最后一个消费者端开连接以后 该队列是否自动删除 true 自动删除
-             * 5.其他参数
+             * 4.是否自动删除，最后一个消费者端开连接以后，该队列是否自动删除 true 自动删除
+             * 5.其他参数（声明队列的其他参数，如：队列长度等队列特性）
              */
             channel.queueDeclare(QUEUE_NAME, false, false, false, null);
             String message="hello world";
             /**
              * 发送一个消息
              * 1.发送到那个交换机（hello world使用默认交换机，不指定交换机）
-             * 2.路由的 key 是哪个
-             * 3.其他的参数信息
+             * 2.路由的 routing-key 是哪个（hello world模式使用的是队列名，其他是routing-key）
+             * 3.其他的参数信息（消息的参数，如：消息的过期时间等消息特性）
              * 4.发送消息的消息体
              */
             channel.basicPublish("", QUEUE_NAME, null, message.getBytes());
@@ -180,11 +200,21 @@ public class Consumer {
 
 ### 3.2 Work Queues 任务队列
 
+![image-20220403232651876](asserts/image-20220403232651876.png)
+
 >   工作队列(又称任务队列)的主要思想是避免立即执行资源密集型任务，即生产者生产的消息消费者可以不必立即消费处理。
+>
+>   任务队列模型，让`多个消费者`绑定到`一个队列`，共同消费队列中的消息。
+>
+>   按顺序将每个消息发送给下一个消费者。平均而言，每个消费者都会收到相同数量的消息（轮询方式）。
 
 #### 3.2.1 轮询分发（公平分发）
 
 >   该模式下，生产者发送消息到queue中，队列queue中的消息轮询分发给消费者消费，消费者均匀处理消息。
+>
+>   *   一个队列，多个消费者
+>
+>   *   使用默认交换机，不需要绑定
 >
 >   **ps：**不公平分发需要预取值设置channel.basicQos(1)，通常不公平分发需要手动确认支持，自动确认发送完就任务确认了。
 
@@ -246,23 +276,128 @@ public class Worker01 {
 }
 ```
 
-### 3.3 消息应答
+### 3.3 Publish/Subscribe fanout模式
 
->   消息应答是保证消息不丢失的保障手段之一.
+>   fanout类型的发布订阅模式。在该模式下，可以有`多个消费者`，`多个队列`，每个消费者有自己的队列queue（消费者订阅队列），每个队列queue又绑定交换机exchange，但不需要指定routing-key。`参考fanout交换机`.
+>
+>   *   消费者与队列绑定：
+>   *   队列与交换机绑定 ： channel.queueBind(queueName, EXCHANGE_NAME, "")
+>   *   生产者发布消息不需要指定队列或者routing-key
+>   *   交换机把消息发送给绑定过的所有队列
+>
+>   队列的消费者都能拿到消息，实现一条消息被多个消费者消费，参考faout交换机。
+>
+>   ```java
+>   Exchange.DeclareOk exchangeDeclare(String exchange, String type);
+>   // 队列和交换机绑定，在fantou模型下不需要routing-key
+>   Queue.BindOk queueBind(String queue, String exchange, String routingKey) 
+>   ```
+
+**生产者**：生产者声明交换机
+
+```java
+//声明交换机
+channel.exchangeDeclare("logs","fanout");//广播 一条消息多个消费者同时消费
+//发布消息
+channel.basicPublish("logs","",null,"hello".getBytes());
+// 交换机绑定队列
+channel.queueBind(queueName, EXCHANGE_NAME, "");
+// 发布消息，无需指定queue
+channel.basicPublish(EXCHANGE_NAME, "", null, message.getBytes("UTF-8"));
+	System.out.println("生产者发出消息" + message);
+}
+```
+
+**消费者**
+
+```java
+//绑定交换机
+channel.exchangeDeclare("logs","fanout");
+//创建临时队列
+String queue = channel.queueDeclare().getQueue();
+//将临时队列绑定exchange
+channel.queueBind(queue,"logs","");
+//处理消息
+channel.basicConsume(queue,true,new DefaultConsumer(channel){
+  @Override
+  public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+    System.out.println("消费者2: "+new String(body));
+  }
+});
+```
+
+### 3.5 Routing
+
+>   Direct指令类型的订阅模型，`参考routing exchange`。该模式下，消息被不同的队列消费。
+>
+>    在Direct模型下：
+>
+>   *   队列与交换机的绑定，不能是任意绑定了，而是要指定一个`RoutingKey`
+>   *   生产者发送消息时，必须指定消息的 `RoutingKey`
+>   *   Exchange根据消息的`Routing Key`将消息路由到不同的队列
+
+**生产者**
+
+```java
+//声明交换机  参数1:交换机名称 参数2:交换机类型 基于指令的Routing key转发
+channel.exchangeDeclare("logs_direct","direct");
+String key = "";
+//发布消息
+channel.basicPublish("logs_direct",key,null,("指定的route key"+key+"的消息").getBytes());
+```
+
+**消费者**
+
+```java
+ //声明交换机
+channel.exchangeDeclare("logs_direct","direct");
+//创建临时队列
+String queue = channel.queueDeclare().getQueue();
+//绑定队列和交换机
+channel.queueBind(queue,"logs_direct","error");
+channel.queueBind(queue,"logs_direct","info");
+channel.queueBind(queue,"logs_direct","warn");
+
+//消费消息
+channel.basicConsume(queue,true,new DefaultConsumer(channel){
+  @Override
+  public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+    System.out.println("消费者1: "+new String(body));
+  }
+});
+```
+
+### 3.6 topic
+
+>   主题模式，可参考`topic交换机`。`Topic`类型`Exchange`可以让队列在绑定`Routing key` 的时候使用通配符！这种模型`Routingkey` 一般都是由一个或多个单词组成，多个单词之间以”.”分割，例如： `item.insert`
+>
+>   除了routing-key的模式与Routing不同之外，其他都差不多。
+
+```markdown
+# 通配符
+* ：匹配一个字符
+# ：匹配一个或多个词
+```
+
+
+
+### 3. 消息应答
+
+>   消息应答是保证消息不丢失的保障手段之一，是消费者消费消费消息成功之后通知broker。
 >
 >   **queue <-> consumer**
 >
 >   注意：RabbitMQ 默认一旦向消费者传递了一条消息，便立即将该消息标记为删除，若消息在传递过程中或者消费端处理过程中，消费者挂掉，消息就会丢失。
 >
->   RabbitMQ 一旦向消费者传递了一条消息，便立即将该消 息标记为删除，rabbitmq 引入消息应答机制。消费者在接收到消息并且处理该消息之后，反馈broker ack确认信息。
+>   rabbitmq 引入消息应答机制，消费者在接收到消息并且处理该消息之后，反馈broker一个ack确认信息。
 
-####  3.3.1 应答方法
+####  3..1 应答方法
 
 *   Channel.basicAck：肯定确认，RabbitMQ 已知道该消息并且成功的处理消息，可以将其丢弃，消费者调用。
 *   Channel.basicNack：否定确认，消费者调用。
 *   Channel.basicReject：否定确认，不处理该消息了直接拒绝，可以将其丢弃。
 
-**确认方法的multiple 的参数解释 **
+**确认方法的multiple 参数解释 **
 
 ![image-20220330223147751](asserts/image-20220330223147751.png)
 
@@ -275,9 +410,11 @@ channel.basicAck(deliveryTag, true);
 
 ![image-20220330223357093](asserts/image-20220330223357093.png)
 
-#### 3.3.2 消息自动重新入队
+#### 3.3.2 消息重新入队
 
 >   消费者由于某些原因，导致消息未发送 ACK 确认，RabbitMQ 将消息未完全处理的消息重新排队，确保不会丢失任何消息。
+>
+>   可以存在幂等性问题，即消息重复消费，可使用唯一id等解决，详细看补充知识。
 
 ![image-20220330223656225](asserts/image-20220330223656225.png)
 
@@ -291,6 +428,10 @@ channel.basicAck(deliveryTag, true);
 #### 3.3.4 手动应答
 
 >   默认消息采用的是自动应答，需要把自动应答改为手动应答，稍加修改消费者代码即可。
+>
+>   ```java
+>   channel.basicConsume(ACK_QUEUE_NAME, autoAck, deliverCallback, consumer);
+>   ```
 
 **消息生产者**: 代码不变
 
@@ -396,21 +537,30 @@ public class Work03 {
 >
 >   MessageProperties.PERSISTENT_TEXT_PLAIN
 
-````java
-````
+![](asserts/image-20220330225931172.png)
 
-![image-20220330225931172](asserts/image-20220330225931172.png)
+### 4.2 队列持久化
+
+>   队列持久化，在broker重启之后，队列仍然存在，只需要在声明队列的时候指定该队列是持久化队列即可。
+
+```java
+// 声明消息队列，且为可持久化的
+channel.queueDeclare(queue_name, durable, false, false, null);
+```
+
+
 
 ## 5，发布确认
 
+发布确认是保障消息不丢失的保障，但是发布确认默认是没有开启的，需要手动设置发布确认(`调用方法`)。
+
+**produce <--> exchange之间的确认，确保发布的消息不丢失**
+
 ### 5.1 普通发布确认
-
-发布确认是保障消息不丢失的保障，但是发布确认默认是没有开启的，需要手动设置发布确认(调用方法)。
-
-**produce <--> switch**
 
 ```java
 Channel channel = connection.createChannel();
+// 开启手动发布确认
 channel.confirmSelect();
 ```
 
@@ -420,7 +570,7 @@ channel.confirmSelect();
 >
 >   **缺点：**
 >
->   *   发布速度特别的慢（只有上一个被确认了，当前消息才能发布）
+>   *   发布速度特别的慢（只有当上一个消息被确认了，当前消息才能发布）
 
 ```java
 public static void publishMessageIndividually() throws Exception {
@@ -611,7 +761,7 @@ public class ConfirmConfig {
 
 >   rabbitTemplate.convertAndSend：发送消息
 >
->   CorrelationData：消息
+>   CorrelationData：消息相关
 
 ```java
 @RestController
@@ -644,7 +794,7 @@ public class Producer {
 
 ##### 回调接口
 
->   所有回调接口
+>   所有发布确认回调接口
 
 ```java
 @Component
@@ -659,7 +809,7 @@ public class MyCallBack implements RabbitTemplate.ConfirmCallback {
      */
     @Override
     public void confirm(CorrelationData correlationData, boolean ack, String cause) {
-        String id=correlationData!=null?correlationData.getId():"";
+        String id = correlationData != null ? correlationData.getId() : "";
         if(ack){
         	log.info("交换机已经收到 id 为:{}的消息",id);
         }else{
@@ -798,7 +948,7 @@ public class MyCallBack implements
 
 #### 默认交换机
 
-前面部分我们对 exchange 一无所知，但仍然能够将消息发送到队列。之前能实现的原因是因为使用了默认交换机，通过空字符串(“”)进行标识。
+前面部分我们对 exchange 一无所知，但仍然能够将消息发送到队列。之前能实现的原因是因为使用了默认交换机，通过空字符串“”进行标识。
 
 **默认交换机时，消息生产者使用的队列名，使用其他交换机生产者使用的是routing-key**
 
@@ -816,7 +966,7 @@ String queueName = channel.queueDeclare().getQueue();
 
 >   binding 其实是 exchange 和 queue 之间的桥梁，告诉我们 exchange 和哪个队列进行了绑定关系。
 >
->   绑定关系通过routing-key来表明。
+>   绑定关系通过routing-key来表明，在声明队列的时候绑定交换机exchange。
 
 ![image-20220331235418304](asserts/image-20220331235418304.png)
 
@@ -915,9 +1065,9 @@ public class Producer {
 
 ### 6.4 Fanout exchange
 
->   Fanout exchange散出交换机，它是将接收到的所有消息广播到它知道的（绑定）所有队列中。
+>   Fanout exchange散出交换机，它是将接收到的所有消息广播到它知道的（绑定）所有队列中，这个时候routing-key没有任何意义，不需要指定。
 >
->   fanout 模式下，生产者发送消息只需要指定交换机即可，交换机会根据更加绑定关系广播到其绑定的队列中。
+>   fanout 模式下，生产者发送消息只需要指定交换机即可，交换机会根据根据绑定关系广播到其绑定的队列中。
 >
 >   swtich和queue任然存在绑定关系。
 
@@ -1025,7 +1175,7 @@ channel.basicPublish(EXCHANGE_NAME,bindingKey, null, message.getBytes("UTF-8"));
 
 ### 6.6 备份交换机
 
->   有了 mandatory 参数和回退消息，可以感知感知无法投递消息的能力，有机会在生产者的消息无法被投递时发现并处理。
+>   前面介绍了消息回退，有了 mandatory 参数和回退消息，可以感知有消息无法投递的能力，有机会在生产者的消息无法被投递时发现并处理。
 >
 >   什么是备份交换机呢？
 >
@@ -1033,7 +1183,7 @@ channel.basicPublish(EXCHANGE_NAME,bindingKey, null, message.getBytes("UTF-8"));
 
 ![image-20220403103142485](asserts/image-20220403103142485.png)
 
-**修改配置类：**
+**修改配置类：**声明确认 Exchange 交换机的备份交换机
 
 ```java
 //声明备份 Exchange
@@ -1053,7 +1203,7 @@ public Binding backupBinding(@Qualifier("backQueue") Queue queue, @Qualifier("ba
 	return BindingBuilder.bind(queue).to(backupExchange);
 }
 
-//声明确认 Exchange 交换机的备份交换机
+// 声明确认 Exchange 交换机的备份交换机
 @Bean("confirmExchange")
 public DirectExchange 
 confirmExchange(){
@@ -1064,15 +1214,11 @@ confirmExchange(){
 }
 ```
 
-
-
-
-
 ## 7，死信队列
 
->   ​		死信，顾名思义就是无法被消费的消息。
+>   ​	  死信，顾名思义就是无法被消费的消息。
 >
->   ​		有时候由于特定的原因导致 queue 中的某些消息无法被消费，如果没有后续的处理，就变成了死信，有死信自然就有了死信队列。
+>   ​	  有时候由于特定的原因导致 queue 中的某些消息无法被消费，如果没有后续的处理，就变成了死信，有死信自然就有了死信队列。
 >
 >   死信队列也是队列，和普通的队列差不多。
 
