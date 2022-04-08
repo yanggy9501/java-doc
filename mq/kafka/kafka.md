@@ -59,7 +59,7 @@ Kafka 集群中有一个 broker 会被选举为 Controller，负责管理集群 
 
 #### 1.3.2 topic注册
 
->   kafka的生产者和消费者都是面向topic的，一个topic有多个分区并分布在多个broker上，topic的信息已经分区对应的broker信息应该保存在哪里呢？
+>   kafka的生产者和消费者都是面向topic的，一个topic有多个分区并分布在多个broker上，topic的信息以及分区对应的broker信息应该保存在哪里呢？
 >
 >   也是由zookeeper来维护的，zookeeper保存了topic已经其分区信息，节点在：
 >
@@ -758,3 +758,680 @@ public class KafkaConsole {
 ```
 
 ## 6，Producer API
+
+Producer API是发布消息到1个或多个Topic，也就是生产者或者说发布方需要用到的API。
+
+### 6.1 消息发送
+
+1.   创建一个kafka生产者KafkaProducer，需要传递一个Properties属性（即指定集群地址，数据大小等客服端属性）
+2.   创建消息对象ProducerRecord（包含`topic`、分区、key、`value`，其中topic和value必须指定）
+
+****
+
+>   主线程将待发送的消息封装成一个`ProducerRecord`实例，经过分区器确定分区，然后保存到本地内存缓存区中。另一个线程（I/O发送线程）则负责实时地将缓冲区中取出准备就绪的消息封装进一个批次（batch），统一发送给对应的broker。
+>
+>   因此，发送消息时，消息先进入缓冲区中，然后缓冲区中“多条”输出组成一个batch，统一发送给broker。
+>
+>   1.   业务数据封装成ProducerRecord对象，调用send方法将消息保存到缓冲区中
+>   2.   Sender线程负责将消息信息构成请求，最终执行I/O线程发送消息（异步发送）
+>
+>   **ps**：KafkaProducer是线程安全的，多个线程间可以共享使用同一个KafkaProducer对象。
+
+**相关参数：**
+
+-   batch.size： 只有数据积累到 batch.size 之后， sender 才会发送数据。
+-   linger.ms： 如果数据迟迟未达到 batch.size， sender 等待 linger.time 之后也会发送数据。
+
+#### 发送案例
+
+**不带回调函数的发送者**
+
+```java
+import org.apache.kafka.clients.producer.*;
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+
+public class CustomProducer {
+    public static void main(String[] args) throws ExecutionException,InterruptedException {
+        Properties props = new Properties();
+        // kafka 集群， broker-list 必须指定
+        props.put("bootstrap.servers", "hadoop102:9092");
+        props.put("acks", "all");
+        // 重试次数
+        props.put("retries", 1);
+        // 批次大小
+        props.put("batch.size", 16384);
+        // 等待时间
+        props.put("linger.ms", 1);
+        // RecordAccumulator 缓冲区大小
+        props.put("buffer.memory", 33554432);
+        // key序列化器必须指定
+        props.put("key.serializer",
+                  "org.apache.kafka.common.serialization.StringSerializer");
+        // value序列化器必须指定
+        props.put("value.serializer",
+                  "org.apache.kafka.common.serialization.StringSerializer");
+        // 生产者
+        Producer<String, String> producer = new
+            KafkaProducer<>(props);
+        for (int i = 0; i < 100; i++) {
+            producer.send(
+                new ProducerRecord<String, String>(
+                    "first",
+                    Integer.toString(i), 
+                    Integer.toString(i)));
+        }
+        // 所有的通道打开都需要关闭
+        producer.close();
+    }
+}
+```
+
+### 6.2 生产者属性
+
+Producer.Config
+
+#### 必须参数
+
+1.   **bootstrap.servers**：指定了ip、port对，用于创建向kafka broker服务器的链接。如k1:9092,k2:9092。如果kafka集群中机器数很多，那么只需指定部分broker即可，不需要列出所有的机器。因为不管指定几台机器，producer都会通过该参数找到并发现集群中所有broker。为该参数指定多态机器只是为了故障转移使用。这样即使某一台broker挂掉了，producer重启后依然可以通过该参数指定的其他broker连入kafka集群
+
+2.   **key.serializer**：key序列化器，被发送到broker端的任何消息的格式都必须是字节数组，因此消息的各个组件必须首先做序列化，然后才能发送到broker。kafka大部分初始类型默认提供了现成的序列化器。用户可以自定义序列化器，只要实现Serializer接口即可。
+
+3.   **value.serializer**：value序列化器，将消息value部分转换成字节数组。
+
+****
+
+#### 可选参数
+
+1.   **acks**：ack确认
+     *   acks=0：不等broker的返回
+     *   acks=-1或者all：等待ISR中所有副本都成功落盘后应答
+     *   acks=1：只等leader的落盘成功就应答
+2.   **buffer.memory**：producer段缓存消息的缓冲区大小，字节为单位，默认值32MB。
+
+3.   **compression.type**：producer发送时是否压缩数据。默认none。还有GZIP、Snappy、LZ4（性能最好）。
+
+4.   **reties**：发送消息失败时重试次数，默认为0不重试（重试可能导致消息重复）。
+5.   **batchsize**：通常一个小的batch中包含多条消息。默认16KB，一般都增加。
+6.   **linger.ms**：即使batchsize没满，超过该设置时间后也会发送。默认为0表示消息立即发送，无需关心batch是否填满。
+7.   **max.request.size**：能发送的最大消息大小，但包含一些消息头。默认1048576（太小）
+
+8.   **request.timeout.ms**：超过默认的30s后仍没收到返回结果就会发生异常
+
+### 6.3 生产者Java对象
+
+**KafkaProducer**：生产者对象
+
+```java
+Producer<String, String> producer = new KafkaProducer<>(props);
+```
+
+**ProducerRecord**：消息体对象，封装消息
+
+```java
+ProducerRecord(topic, partition, key, value);
+ProducerRecord(topic, key, value);
+ProducerRecord(topic, value);
+
+<1> 若指定Partition ID,则PR被发送至指定Partition
+<2> 若未指定Partition ID,但指定了Key, PR会按照hasy(key)发送至对应Partition
+<3> 若既未指定Partition ID也没指定Key，PR会按照round-robin模式发送到每个Partition
+<4> 若同时指定了Partition ID和Key, PR只会发送到指定的Partition (Key不起作用，代码逻辑决定)
+```
+
+### 6.4 发送消息
+
+kafka producer发送消息的主方法是send()方法。通过Java提供的Future同时实现了`同步发送`和`异步发送 + 回调`两种发送方式
+
+#### 6.4.1 异步发送(回调)
+
+>   send返回一个java的Future对象供用户获取发送结果（回调机制）。
+
+```java
+for (int i = 0; i < 100; i++) {
+    producer.send(
+        new ProducerRecord<String, String> ( "first", Integer.toString(i), Integer.toString(i))
+        , new Callback() {
+                // 回调函数， 该方法会在 Producer 收到 ack 时调用(异步调用)
+                @Override
+            	// 两个参数不会同时非空，即至少一个为null。若消息发送失败，metadata为null, 当消息发送成功时e为null。
+                public void onCompletion(RecordMetadata metadata, Exception exception) {
+                    // 发送成功
+                    if (exception == null) {
+                        System.out.println("success-> " + metadata.offset());
+                    } else { 
+                        exception.printStackTrace();
+                    }
+            }
+        });
+}
+```
+
+#### 6.4.2 同步发送
+
+>   同步发送调用`send().get()`即可，get方法会一直等待下去直至broker将发送结果返回给producer程序。
+
+```java
+for (int i = 0; i < 100; i++) {
+    producerRecord<String,String> record = new producerRecord<>("first",Integer.toString(i));
+    // get方法会一直等待下去直至broker将发送结果返回给producer程序。
+    // 返回的时候要不返回发送结果，要么抛出异常由producer自行处理。
+    // 如果成功，get将返回对应的RecordMetadata实例（包含了已发送消息的所有元数据消息），包含了topic、分区、位移
+    // send的返回值类型是Future<RecordMetadata> 
+    // 调用get方法即可获取器结果
+    producer.send(record).get();
+}
+```
+
+#### 6.4.3 异常处理
+
+>   不管是同步发送还是异步发送，发送都有可能失败，导致返回异常错误。
+>
+>   kafka的错误类型：
+>
+>   *   可重试异常
+>   *   不可重复异常。
+>
+>   对于可重试异常，如果在producer程序中配置了重试次数，那么只要在规定的重试次数内自行恢复了，便不会出现在onCompletion的exception中.
+
+不可重试异常都表明了一些严重或kafka无法处理的问题，与producer相关的如下：
+
+-   RecordToolLargeException：发送的消息太大，超过了规定的大小上限
+-   SerializationException：序列化失败异常
+-   KafkaException：其他类型的异常
+
+**异常处理**
+
+```java
+producer.send(record,new Callback(){
+    @Override
+    public void onCompletion(RecordMetaData metadata,Exception exception){
+        if (exception == null) { // 发送成功
+            System.out.println("success->" + metadata.offset());
+        } else { 
+            if(exception instanceof RetriableException){
+                 // 处理可重试异常
+            } else {
+                // 不可重试异常 
+        }
+    }
+})
+```
+
+**producer程序结束一定要关闭producer。因为producer程序运行时占用了系统资源**
+
+### 6.5 生产过程
+
+>   producer采用推（`push`）模式将消息发布到broker，每条消息都被追加（append）到分区（patition）中，属于**顺序写磁盘**
+
+### 6.6 发布确认机制
+
+>   消息的确认机制是保证消息不丢失的保障手段。
+>
+>    Kafka 为用户提供了三种可靠性级别，用户根据对可靠性和延迟的要求进行权衡（前面介绍生产者api参数属性）
+>
+>   **acks**：ack确认
+>
+>   *   acks=0：不等broker的返回，broker一接收到还没有写入磁盘就已经返回，这时send回调失去作用
+>   *   acks=-1或者all：等待ISR中所有副本都成功落盘后应答
+>       *   数据重复：如果在follower同步完成后，leader发送ack之前，leader发生故障，那么会造成数据重复
+>       *   数据丢失：比如ISR中只有一个leader，leader写完了就发送ACK，但是还没同步就挂掉
+>   *   acks=1：只等leader的落盘成功就应答
+>       *   数据丢失：如果在 follower同步成功之前leader故障，那么将会丢失数据
+
+#### 6.6.1 设置发布确认
+
+send方法中回调函数可收到确认消息
+
+```java
+// JAVA API中的
+// 无需得到回复
+properties.put(ProducerConfig.ASKS_CONFIG,"0");
+```
+
+#### 6.6.2  副本同步策略
+
+| 方案                             | 优点                                                     | 缺点                                                        |
+| -------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------- |
+| 半数以上完成同步， 就发送 ack    | 延迟低                                                   | 选举新的 leader 时， 容忍 n 台 节点的故障，需要 2n+1 个副本 |
+| 全部完成同步，才发送 ack         | 选举新的 leader 时，容忍 n 台节点的故障，需要 n+1 个副本 | 延迟高                                                      |
+| 只要ISR集合中同步完成即可发送ack |                                                          |                                                             |
+|                                  |                                                          |                                                             |
+
+**Kafka 选择了第二种方案（+ISR），原因如下**
+
+*   同样容忍 n 台节点的故障，第一种方案需要 2n+1 个副本，而第二种方案只需要 n+1个副本
+*   第二种方案的网络延迟会比较高，但网络延迟对 Kafka 的影响较小
+
+假设有一个节点迟迟没有同步，那么leader 就要一直等下去，直到它完成同步，才能发送 ack。这个问题怎么解决呢？ -> ISR
+
+##### ISR
+
+>    in-sync replica set (ISR)，意为**和 leader 保持同步的 follower 集合**.
+>
+>   如果 follower长 时 间 未 向 leader 同 步 数 据 ， 则 该 follower 将 被 踢 出 ISR ， 该 时 间 阈 值 由 replica.lag.time.max.ms 参数设定。
+>
+>   被踢出去的replication还在同步，只是不算在ISR里。被踢出去的同步追上leader后，又重新计入ISR
+
+## 7，分区器
+
+>   topic由partition分区构成，partition由多个log文件，index文件构造，log文件由多个消息构成。
+>
+>   *   每个Partition中的消息都是有序的，消息被不断追加到log上，其中的每一个消息都被赋予了唯一的offset值
+>   *   kafka有自己的分区策略的，如果未指定，就会使用默认的分区策略（即`hash(key) % numPartitions`）
+
+![](asserts/4983bf3a4d8c043a33fe363f7556d2e5.png)
+
+### 7.1 分区概述
+
+#### 分区原因
+
+1.   **提高并发**，多个partition可以同时多写，因为可以以Partition为单位读写
+2.   方便扩展，可以增加节点以应对日益增长的数据
+
+#### 默认分区器
+
+>   可以模仿他实现Partition接口实现我们自己的分区器
+
+````java
+/**
+ * 默认的分区策略：
+ * 如果给定了分区，使用他
+ * 如果没有分区但是有个key，就是就根据key的hash值取分区
+*  如果分区和key值都没有，就采样轮询
+ */
+public class DefaultPartitioner implements Partitioner {
+    private final ConcurrentMap<String, AtomicInteger> topicCounterMap = new ConcurrentHashMap<>();
+
+    // 必要资源的初始化工作
+    public void configure(Map<String, ?> configs) {}
+
+    // 返回要放入的paritition
+    public int partition(String topic,  // 主题
+                         Object key,  // 给定的key
+                         byte[] keyBytes,  // key序列化后的值
+                         Object value,  // 要放入的值
+                         byte[] valueBytes, // 序列化后的值
+                         Cluster cluster) { // 当前集群
+        
+        List<PartitionInfo> partitions = cluster.partitionsForTopic(topic);
+        // 对应主题的分区数
+        int numPartitions = partitions.size();
+        // 如果key为null
+        if (keyBytes == null) {
+            // 获取主题轮询的下一个partition值，但还没取模
+            int nextValue = nextValue(topic);
+            List<PartitionInfo> availablePartitions = cluster.availablePartitionsForTopic(topic);
+            if (availablePartitions.size() > 0) {
+                // 把上面的partition值取模得到真正的分区值
+                int part = Utils.toPositive(nextValue) % availablePartitions.size();
+                // 得到对应的分区
+                return availablePartitions.get(part).partition();
+            } else {
+                // 没有分区
+                // no partitions are available, give a non-available partition
+                return Utils.toPositive(nextValue) % numPartitions;
+            }
+        } else {
+            // 输入了key值，直接对key的hash值取模就可以得到分区号了
+            return Utils.toPositive(Utils.murmur2(keyBytes)) % numPartitions;
+        }
+    }
+
+    private int nextValue(String topic) {
+        AtomicInteger counter = topicCounterMap.get(topic);
+        if (null == counter) {
+            counter = new AtomicInteger(ThreadLocalRandom.current().nextInt());
+            AtomicInteger currentCounter = topicCounterMap.putIfAbsent(topic, counter);
+            if (currentCounter != null) {
+                counter = currentCounter;
+            }
+        }
+        // 自增
+        return counter.getAndIncrement();
+    }
+
+    // 关闭partitioner// 主要是关闭那些partitioner时初始化的系统资源等
+    public void close() {}
+}
+````
+
+#### 自定义分区器
+
+```java
+/* 自定义分区器*/
+public class DefinePartitioner implements Partitioner {
+    private final AtomicInteger counter = new AtomicInteger(0);
+    @Override
+    public int partition(String topic,  // 主题
+                         Object key,  // 给定的key
+                         byte[] keyBytes,  // key序列化后的值
+                         Object value,  // 要放入的值
+                         byte[] valueBytes, // 序列化后的值
+                         Cluster cluster) { // 当前集群
+
+        //然后在生产者中假如一行代码即可
+        // 自定义分区 
+        // 在生产者中指定
+        props.put("partitioner.class", "com.xxx.kafka.CustomPartitioner");
+        int numPartitions = partitions.size();
+        if (null == keyBytes) {
+            return counter.getAndIncrement() % numPartitions;
+        } else
+            return Utils.toPositive(Utils.murmur2(keyBytes)) % numPartitions;
+    }
+    @Override
+    public void close() {
+    }
+    @Override
+    public void configure(Map<String, ?> configs) {
+    }
+}
+
+// 然后在生产者中假如一行代码即可
+// 自定义分区 // 在生产者中指定
+props.put("partitioner.class", "com.xxx.kafka.CustomPartitioner");
+```
+
+
+
+## 8，序列化器
+
+>   数据在网络中传输，必须进行序列化转化为字节，而序列化器的作用就是如此。
+>
+>   Kafka 默认序列化器有：
+>
+>   *   字符串序列化器：org.apache.kafka.common.serialization.StringSerializer
+>   *   整型序列化器：IntegerSerializer
+>   *   字节数组序列化器：BytesSerializer
+>
+>   这些序列化器都实现了接口org.apache.kafka.common.serialization.Serializer
+
+​		序列化器负责将该消息转换成字节数组；而与之相反，反序列化器则用于将consumer接收到的字节数组转换成相应的对象。
+
+### 8.1 自定义序列化器
+
+>   自定义序列化器需实现接口org.apache.kafka.common.serialization.Serializer，生产者客服端属性properties中指定序列化器的类全类名即可
+
+```java
+/**
+* 自定义序列化器
+    北京市昌平区建材城西路金燕龙办公楼一层 电话：400-618-9090
+    使用自定义的序列化器
+    见代码库：com.heima.kafka.chapter2.ProducerDefineSerializer
+*/
+public class CompanySerializer implements Serializer<Company> {
+    @Override
+    public void configure(Map configs, boolean isKey) {
+    }
+    @Override
+    // 传入Company实例，转成byte[]
+    public byte[] serialize(String topic, Company data) {
+        if (data == null) {
+            return null;
+        }
+        byte[] name, address;
+        try {
+            if (data.getName() != null) {
+                name = data.getName().getBytes("UTF-8");
+            } else {
+                name = new byte[0];
+            }
+            if (data.getAddress() != null) {
+                address = data.getAddress().getBytes("UTF-8");
+            } else {
+                address = new byte[0];
+            }
+            ByteBuffer buffer = ByteBuffer.allocate(4 + 4 + name.length + address.length);
+            buffer.putInt(name.length);
+            buffer.put(name);
+            buffer.putInt(address.length);
+            buffer.put(address);
+            return buffer.array();
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        return new byte[0];
+    }
+    
+    @Override
+    public void close() {
+        
+    }
+}
+```
+
+**使用自定义序列化器**
+
+```java
+properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, CompanySerializer.class.getName());
+KafkaProducer<String, Company> producer =  new KafkaProducer<>(properties);
+```
+
+## 9，broker数据存储
+
+>   ​	消息生产者生产的消息发送给topic，最终给topic中某个partition分区，每一个 partition(文件夹)相当于一个巨型文件被平均分配到多个大小相等segment(段)数据文件里。
+>
+>   ​	segment文件生命周期由服务端配置參数决定，即消息持久化保存的生命周期可以指定，定期清理。
+
+一个partition分为多个segment（为了提高查找效率）
+
+**partiton中segment文件存储结构：**
+
+-   索引文件index file：后缀`.index`
+-   数据文件data file（不是日志，是消息数据）：后缀`.log`
+
+**segment文件命名规则**：
+
+​	partion全局的第一个segment从0开始，每一个segment文件名称是上一个segment文件最后一条消息的offset值，64位对齐，不足时用0填充，如下：。
+
+```sh
+-rw-r--r-- 1 it sudo  10485760 Aug 29 09:38 00000000000000000000.index
+-rw-r--r-- 1 it sudo     0 Aug 29 09:38 00000000000000000000.log
+-rw-r--r-- 1 it sudo  10485756 Aug 29 09:38 00000000000000000000.timeindex
+-rw-r--r-- 1 it sudo     8 Aug 29 09:38 leader-epoch-checkpoint
+```
+
+### 9.1 索引
+
+#### 9.1.2 数据文件的分段
+
+​		kafka集群查询效率的手段之一就是将数据文件分段。比如有100条消息，他们的offset是从0到99。数据文件以该段中最小的offset命名。在查找指定offset的Message的时候，用二分查找就可以定位到该Message在哪个段中
+
+****
+
+#### 9.1.2 消息偏移量
+
+​	数据文件分段使得可以在一个较小的数据文件中查找对应offset的Message，但是依然需要顺序扫描才能找到对应offset的Message。为了进一步提高查找的效率，Kafka为每个分段后的数据文件建立了索引文件，文件名与数据文件的名字是一样的，只是文件扩展名为.index。
+
+------------------------------------------------
+比如：要查找绝对 offset为7的Message：
+
+首先是用二分查找确定它是在哪个LogSegment中。 打开这个Segment的index文件，也是用二分查找找到offset小于或者等于指定offset的索引条目中最大的那个offset。
+
+### 9.2 日志清理
+
+>   Kafka日志管理器允许定制删除策略。
+>
+>   *   按时间删除：删除修改时间在N天之前的日志
+>   *   按大小删除：留最后的N GB数据的策略
+>
+>   Kafka消费日志删除思想：Kafka把topic中一个parition大文件分成多个小文件段，通过多个小文件段，就容易定期清除或删除已经消费完文件，减少磁盘占用。
+
+#### 启用日志清理策略
+
+```java
+# 启动删除策略
+log.cleanup.policy=delete
+# 清理超过指定之间清理
+log.retention.hours=16
+# 超过指定大小后，删除旧的信息
+log.retention.bytes=1073741824
+```
+
+### 9.3 ~~日志压缩~~
+
+>   将数据压缩，只保留每个key（key理解我消息的又一次分类）最后一个版本的数据。
+>
+>   首先在broker的配置中设置log.cleaner.enable=true启用cleaner，这个默认是关闭的。
+>
+>   在Topic的配置中设置log.cleanup.policy=compact启用压缩策略。
+
+
+
+## 10，Consumer API
+
+Consumer API是消费者客服端使用的相关API.
+
+Consumer 消费数据时的可靠性是很容易保证的，因为数据在 Kafka 中是持久化的，故不用担心数据丢失问题。
+
+**为什么要维护Consumer消费数据的offset？**
+
+>   由于 consumer 在消费过程中可能会出现断电宕机等故障， consumer 恢复后，需要从故障前的位置的继续消费，所以 consumer 需要实时记录自己消费到了哪个 offset，以便故障恢复后继续消费。
+
+### 10.1 消费流程
+
+​		consumer 采用 pull（拉） 模式从 broker 中读取数据（因为push推送模式很难适应消费速率不同的消费者， pull 模式则可以根据 consumer 的消费能力以适当的速率消费消息）。
+
+**pull缺点：**
+
+1.   如果 kafka 没有数据，消费者可能会陷入循环中， 一直返回空数据。
+
+     >   解决方法：timeout 超时时长：Kafka 的消费者在消费数据时会传入一个时长参数 timeout，如果当前没有数据可供消费， 会等待一段时间之后再返回，这段时长即为 timeout。
+
+### 10.2 创建消费
+
+```sh
+ bin/kafka-console-consumer.sh --zookeeper hadoop102:2181 --topic first
+```
+
+#### 消费者API
+
+1.   创建消费者所需客服端属性Properties用户构造消费者
+2.   构造KafkaConsumer对象（需要Properties属性）
+3.   消费者订阅一个topic列表
+4.   循环调用KafkaConsumer.poll()获取封装在ConsumerRecord的topic信息
+5.   消息处理
+6.   关闭KafkaConsumer
+
+```java
+import java.util.Arrays;
+import java.util.Properties;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+
+public class CustomNewConsumer {
+	public static void main(String[] args) {
+		Properties props = new Properties();
+		// 定义kakfa 服务的地址，不需要将所有broker指定上 
+		props.put("bootstrap.servers", "hadoop102:9092");
+		// 指定consumer group，该消费者所属消费者组
+		props.put("group.id", "test");
+		// 是否自动确认消费消息的offset 
+		props.put("enable.auto.commit", "true"); 
+		// 自动确认offset的时间间隔 
+		props.put("auto.commit.interval.ms", "1000");
+		// key的序列化类
+		props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+		// value的序列化类 
+		props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+		// 定义consumer 
+		KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+		
+		// 消费者订阅的topic, 可同时订阅多个 
+		consumer.subscribe(Arrays.asList("first", "second", "third"));
+		// 循环调用
+		while (true) {
+			// 读取数据，读取超时时间为100ms 
+			ConsumerRecords<String, String> records = consumer.poll(100);
+			
+			for (ConsumerRecord<String, String> record : records)
+				System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+		}
+	}
+}
+```
+
+#### 消费者属性
+
+##### 必选参数
+
+*   bootstrap.servers：与生产者类似，用逗号分隔多组。同样如果是集群的话无需都指定，指定几个防止宕机即可，zookeeper会自动订阅集群内所有的指定topic。如果broker段没有使用ip配置advertised.listeners的话，就不要把bootstrap.servers写成ip，而应该是主机名，因为kafka不使用的全称域名FQDN。倘若不统一，会出现无法获取元数据的异常。
+*   group.id：消费者组
+*   key.deserializer：key序列化器
+*   value.deserializer：value序列化器
+
+------------------------------------------------
+##### 可选参数
+
+*   session.timeout.ms：检测组内成员发送崩溃的时间。倘若consumer两次poll()时间间隔超过这个参数，就会检测为coordinator就会认为这个consumer已经跟不上消费者组内其他成员的消费进度了，因此就把该消费者踢出消费者组，原来其消费的partition会分配给其他consumer。
+*   max.poll.interval.ms：即上面consumer处理逻辑最大时间。
+*   auto.offset.reset：
+*   enable.auto.commit：自动提交
+*   fetch.max.bytes：单次获取数据的最大字节数
+*   max.poll.records：单次poll返回的最大消息数
+*   heartbeat.interbal.ms：消费组内其他成员感知rebalance的时长，即如果consumer在timeout时长内都不发送心跳，coordinator就会认为它已经dead
+
+#### 消费者Java
+
+##### KafkaConsumer 消费者对象
+
+```java
+// 定义consumer 
+KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+// 或
+KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props, new StringDeserializer(), new StringDeserializer());
+```
+
+##### 订阅topic列表，订阅分区
+
+```java
+// 消费者订阅的topic, 可同时订阅多个 
+consumer.subscribe(Arrays.asList("first", "second","third"));
+
+// 通过正则表达式匹配多个主题。并且订阅之后如果又有新的匹配的新主题，那么这个消费者组会立即对齐进行消费。非常有用
+// 实现了ConsumerRebalanceListener接口，但这里说明都不做
+consumer.subscribe(Pattern.compile("kafka.*"), new NoOpConsumerRebalanceListener());
+
+// 如果是使用独立consumer，可以手动订阅指定分区
+TopicPartition tp1 = new TopicPartition("topic-name",0);
+TopicPartition tp2 = new TopicPartition("topic-name",1);
+consumer.assign(Arrays.asList(tp1,tp2));// 用的是assign
+```
+
+##### 获取消息
+
+```java
+// 需要在其他线程中调用consumer.wakeup()触发consumer的关闭。虽然consumer是线程不安全的，但其他用户调用这个函数是安全的
+while (true) {
+    // 读取数据，读取超时时间为100ms 
+    ConsumerRecords<String, String> records = consumer.poll(100);
+
+    for (ConsumerRecord<String, String> record : records)
+        System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+}
+
+```
+
+##### 关闭Consumer
+
+```java
+try{
+    while (true) {
+        // 读取数据，读取超时时间为100ms 
+        ConsumerRecords<String, String> records = consumer.poll(100);
+        for (ConsumerRecord<String, String> record : records)
+            System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+    }
+    
+}finally{
+    KafkaConsumer.close();
+    KafkaConsumer.close(timeout);//关闭消费者并最多当代timeout秒
+}
+```
+
+### 10.3 消费者组
+
+## 10，拦截器
+
