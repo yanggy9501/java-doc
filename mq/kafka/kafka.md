@@ -1433,5 +1433,118 @@ try{
 
 ### 10.3 消费者组
 
+>   ​		消费者使用一个消费者组名group.id来表示自己（创建消费者的时通过properties指定），topic的每条消息都只会发送到每个订阅他的消费者组的一个消费者实例上。
+>
+>   ​		每个partition消息只能被发送到消费者组中一个消费者实例上，所以消费者组里的consumer不要比partition数多，多了没有意义。
+>
+>   ​		consumer从partition中消费消息是顺序消费，默认从头开始消费。
+>
+>   因此，消费者组可以实现单播，和广播，都是基于发布订阅：
+>
+>   *   广播：多个消费者组订阅topic，消息会被多个消费者消费。
+>   *   单播：当消费者组订阅topic，消息只会被消费一次。
+>
+>   **消费者组的意义**
+>
+>   *   高容错性
+>   *   高伸缩性
+
+![](asserts/6d601060fc4ff929536c60a98b619afe.png)
+
+**ps：**消费者可以通过水平扩展的方式同时读取大量的消息。另外，如果一个消费者失败了，那么其他的group成员会自动负载均衡读取之前失败的消费者读取的分区。
+
+### 10.4 消费者组再平衡
+
+>   再均衡是指，对于一个消费者组，分区的所属从一个消费者转移到另一个消费者的行为，分区的消费者改变。因此，可以实现方便又安全地删除组内的消费者或者往消费者组里添加消费者。但是，再均衡发生期间，消费者是无法拉取信息。
+
+#### 再平衡触发条件
+
+1.   当一个 consumer 加入组时（如果consumer已经大于partition数量，加入是没有意义的）
+2.   当一个 consumer 离开组时（同样的consumer还是大于分区数量，也是没有意义的）
+3.   当 Topic 发生变化时，比如`添加新的分区`，会发生分区重分配
+
+**PS:**producer是线程安全的，consumer不是线程安全的。因此consumer有两种典型的处理模式：
+
+*   一是每个线程里创建自己consumer
+*   二是全局只用一个consumer，然后线程加锁使用，或者自始至终只有一个线程在使用
+
+**监听再平衡触发**
+
+在订阅的使用，传递一个ConsumerRebalanceListener作为回调函数。
+
+```java
+// 出现再均衡时，马上再提交一回
+public class CommitSynclnRebalance {
+    public static void main(String[] args) {
+        Properties properties = initNewConfig();
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(properties);
+        HashMap<TopicPartition, OffsetAndMetadata> currentOffsets = new HashMap<>();
+        
+        consumer.subscribe(Arrays.asList("first"), new ConsumerRebalanceListener() {
+            @Override
+            public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+                // 尽量避免重复消费
+                consumer.commitAsync(currentOffsets);
+            }
+            @Override
+            public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+                // do nothing
+            }
+        });
+        try {
+            while (isRunning.get()){
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(1000));
+                for (ConsumerRecord<String, String> record : records) {
+                    System.out.println(record.offset()+":"+record.value());
+                    currentOffsets.put(new TopicPartition(record.topic(),record.partition()),new OffsetAndMetadata(record.offset()+1))
+                }
+            }
+        } finally {
+            consumer.commitAsync(currentOffsets,null);
+        }
+    }
+}
+```
+
+#### 再平衡分配策略
+
+>   已经触发再平衡，分区如何再次分配个消费者消费呢？
+>
+>   Kafka 有两种分配策略
+>
+>   1.   RoundRobin：把所有的 partition 和所有的 consumer 都列出来，然后按照 hashcode 进行排序，最后通过轮询算法来分配
+>   2.   Range ：范围分区策略是对每个 topic 而言。通过 `partitions数/consumer数` 来决定每个消费者应该消费几个分区。
+
+**RoundRobin：**
+
+假如有3个Topic：T0, T1, T2
+
+三个消费者: C0, C1, C2
+
+![](asserts/20180914091316717.PNG)
+
+### 10.5 消费端offset
+
+>   这里的offset是consumer端的offset，每个consumer实例需要为他消费的partition维护一个记录自己消费到哪里的偏移offset。
+>
+>   kafka把offset保存在消费端的消费者组里。kafka引入了检查点机制定期对offset进行持久化。
+>
+>   offset可以避免 consumer 在消费过程中可能会出现断电宕机等故障， consumer 恢复后，需要从故障前的位置的继续消费，所以 consumer 需要实时记录自己消费到了哪个 offset，以便故障恢复后继续消费。
+
+#### 10.5.1 位移提交
+
+>   调用poll方法从partition拉取数据，然后可以调用commit方法告诉 partition这一批数据消费成功，返回值这批数据最高的偏移量提交给partition。
+>
+>   consumer客户端需要定期向kafka集群汇报自己消费数据的进度。当我们调用poll时就会根据该信息消费。
+>
+>   0.9.0.0版本之后，位移提交放到kafka-Broker内部一个名为`__concumer_offsets`的topic里。
+>
+>   **提交间隔：** 当`enable.auto.commit`设置为true，那么消费者会在poll方法调用后每隔5秒（由`auto.commit.interval.ms`指定）提交一次位移。
+
+**自动提交offset相关参数：**
+
+-   enable.auto.commit： 是否开启自动提交 offset 功能
+-   auto.commit.interval.ms： 自动提交 offset 的时间间隔
+
 ## 10，拦截器
 

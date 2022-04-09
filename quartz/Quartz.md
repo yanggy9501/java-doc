@@ -921,7 +921,7 @@ org.quartz.plugin.jobInitializer.wrapInUserTransaction: false
 
 ### 1.2 整合
 
-quartz的调度器是可以一样的，用于中保存一个就可以，它可以去调度各个任务。
+quartz的调度器是可以一样的，应用中保存一个就可以，它可以去调度各个任务。
 
 #### 1.2.1 依赖
 
