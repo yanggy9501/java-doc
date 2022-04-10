@@ -1523,7 +1523,7 @@ public class CommitSynclnRebalance {
 
 ![](asserts/20180914091316717.PNG)
 
-### 10.5 消费端offset
+### 10.5 Offset
 
 >   这里的offset是consumer端的offset，每个consumer实例需要为他消费的partition维护一个记录自己消费到哪里的偏移offset。
 >
@@ -1546,5 +1546,187 @@ public class CommitSynclnRebalance {
 -   enable.auto.commit： 是否开启自动提交 offset 功能
 -   auto.commit.interval.ms： 自动提交 offset 的时间间隔
 
+**ps：** 返回给broker的offset是下一条要消费的位移
+
+#### 10.5.2 Offset分类
+
+Offset从语义上来看拥有两种：Current Offset和Committed Offset。
+
+****
+
+##### Current Offset
+
+>   Current Offset保存在Consumer客户端中，它表示Consumer希望收到的下一条消息的序号，仅仅在poll方法中使用。如：Consumer第一次调用poll()方法后收到了20条消息，那么Current Offset就被设置为20，因此Consumer知道自己下一次消费从何开始。
+
+****
+
+##### Committed Offset
+
+>   Committed Offset保存在Broker上，它表示Consumer已经确认消费过的消息的序号。主要通过`commitSync`和`commitAsync`API来操作。Committed Offset主要用于Consumer Rebalance。
+
+**总结：Current Offset是针对Consumer的poll过程的，它可以保证每次poll都返回不重复的消息；而Committed Offset是用于Consumer Rebalance过程的，它能够保证新的Consumer能够从正确的位置开始消费一个partition，从而避免重复消费。**
+
+------------------------------------------------
+#### 10.5.3 手动提交offset
+
+>   虽然自动提交 offset 十分简介便利，但由于其是基于时间提交的， 开发人员难以把握offset 提交的时机。因此 Kafka 还提供了手动提交 offset 的 API。
+
+**提交API**
+
+1.   commitSync（同步提交）：阻塞当前线程，直到提交成功，并且会自动失败重试(也可能失败)，由于同步提交 offset 有失败重试机制，故更加可靠。
+2.   commitAsync（异步提交）：没有失败重试机制，故有可能提交失败。更多的情况下，会选用异步提交 offset 的方式
+3.   可以传入一个Map显示地告诉kafka为那些分区提交位移。
+
+##### 手动-同步提交
+
+```java
+public class CustomComsumer {
+    public static void main(String[] args) {
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+        consumer.subscribe(Arrays.asList("first"));//消费者订阅主题
+        while (true) {
+            //消费者拉取数据
+            ConsumerRecords<String, String> records = consumer.poll(100);
+            for (ConsumerRecord<String, String> record : records) {
+                System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+            }
+            // 同步提交，当前线程会阻塞直到 offset 提交成功
+            consumer.commitSync();
+        }
+    }
+}
+```
+
+##### 手动-异步提交
+
+```java
+public class CustomConsumer {
+    public static void main(String[] args) {
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+        consumer.subscribe(Arrays.asList("first"));//消费者订阅主题
+        while (true) {
+            ConsumerRecords<String, String> records = consumer.poll(100);//消费者拉取数据
+            for (ConsumerRecord<String, String> record : records) {
+                System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+            }
+            // 异步提交
+            consumer.commitAsync(new OffsetCommitCallback() {
+                @Override
+                public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets, Exception exception) {
+                    if (exception != null) {
+                        System.err.println("Commit failed for" + offsets);
+                    }
+                }
+            });
+        }
+    }
+}
+```
+
+**2**
+
+```java
+while(running){
+    ConsumerRecords<String,String> records = consumer.poll(1000);
+    // 按照分区进行位移提交
+    for(TopicPartition partition,records.partition()){
+        // 获取当前分区的消息
+        List<ConsumerRecord<String,String>>partitionRecords = records.records(partition);
+        // 处理当前分区的消息
+        for(ConsumerRecord<String,String> record:partitionRecords){
+            sout()
+        }
+        // 获得当前分区的最大位移
+        long lastOffset = partitionRecords.get(partitionRecords.size() - 1).offset();
+        // 提交的位移是吓一跳待读取消息的位移
+        consumer.commitSync(Collections.singletonMap(partition,new OffsetAndMetadata(lastOffset+1)));
+    }
+}
+```
+
+##### 补充
+
+无论是同步提交还是异步提交 offset，都有可能会造成数据的漏消费或者重复消费。
+
+先提交 offset 后消费，有可能造成数据的漏消费；
+
+而先消费后提交 offset，有可能会造成数据的重复消费。
+
+### 10.6 位移管理
+
+>   其实，offset就是consumer端维护的位置信息。offset对于 consumer非常重要，因为它是实现**消息交付**（`即消费应答`）语义保证( message delivery semantic)的基石。
+>
+>   常见的3种消息交付语义保证如下：
+>
+>   -   最多一次( at most once)处理语义：消息可能丢失，但不会被重复处理（`消息消费之前就提交位移`）。
+>   -   最少一次( at least once)处理语义（默认）: 消息不会丢失，但可能被处理多次(`消息消费之后就提交位移`)。
+>   -   精确一次( exactly once)处理语义：消息一定会被处理且只会被处理一次（at least once + 幂等性）。
+
+#### 10.6.1 Exactly Once 语义
+
+>   0.11 版本的 Kafka，引入了一项重大特性：幂等性
+>
+>   **幂等性**：指 Producer 不论向 Server 发送多少次重复数据， Server 端都只会持久化一条。幂等性结合 At Least Once 语义，就构成了 Kafka 的 Exactly Once 语义.
+>
+>   ****
+>
+>   要启用幂等性，只需要将 Producer 的参数中 <font color="red">enable.idompotence 设置为 true</font> 即可.
+>
+>   开启幂等性的 Producer 在初始化的时候会被分配一个 PID，发往同一 Partition 的消息会附带 Sequence Number。而Broker 端会对<PID, Partition, SeqNumber>做缓存，当具有相同主键的消息提交时， Broker 只会持久化一条。
+>
+>   但是 PID `重启`就会变化，同时`不同的 Partition` 也具有不同主键，所以幂等性无法保证跨分区跨会话的 Exactly Once。
+
+```markdown
+At Least Once + 幂等性 = Exactly Once
+```
+
 ## 10，拦截器
 
+### 10.1 消费者拦截器
+
+```java
+// 指定消费者拦截器
+props.put(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, MyConsumerInterceptor.class.getName());
+```
+
+### 10.2 生产者拦截器
+
+ 		Producer拦截器和consumer端拦截器是在kafka 0.10版本被引入的，主要用于实现clients端的定制化控制逻辑。roducer也支持指定多个拦截器按序作用域同一条消息从而形成一个拦截器链。
+
+**实现接口**
+
+```java
+// 拦截器接口
+public interface ProducerInterceptor<K, V> extends Configurable {
+    
+    // 获取配置信息和初始化数据时使用
+    configure(config);
+
+    // 该方法被封装进KafkaProducer.send()方法中，即它允许在用户主线程中。
+    // producer确保在消息被序列化计算分区前调用该方法。
+    // 可以操作消息，但最好不要修改topic和分区，否则会影响目标分区的集散
+    public ProducerRecord<K, V> onSend(ProducerRecord<K, V> record);
+
+    // 消息被应答之前或消息发送失败时调用，运行在producer的IO线程中因此不要在该方法中放入很“重"的逻辑，否则会拖慢producer的发送效率
+    // 可以用e==null时判断消息发送成功计数
+    public void onAcknowledgement(RecordMetadata metadata, Exception exception);
+
+    // 拦截器关闭时调用
+    public void close();
+}
+
+```
+
+#### 配置拦截器
+
+```java
+// 2 构建拦截链
+List<String> interceptors = new ArrayList<>();
+interceptors.add("com.xxx.kafka.interceptor.TimeInterceptor"); 	interceptors.add("com.xxx.kafka.interceptor.CounterInterceptor"); 
+props.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, interceptors);
+
+String topic = "first";
+Producer<String, String> producer = new KafkaProducer<>(props);
+```
+
+## 11，稳定性

@@ -1,6 +1,21 @@
 # orika&对象复制
 
+## 1，简介
 
+**1. 依赖**
+
+```xml
+<!-- orika bean拷贝 -->
+<dependency>
+    <groupId>ma.glasnost.orika</groupId>
+    <artifactId>orika-core</artifactId>
+    <version>${orika.version}</version>
+</dependency>
+```
+
+
+
+## 2，封装工具
 
 **属性拷贝工具**
 
