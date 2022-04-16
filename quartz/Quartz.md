@@ -277,7 +277,7 @@ JobDetail jobDetail = JobBuilder.newJob(HelloJob.class)
 
 ## 6. Trigger
 
-![image-20220227110315244](asserts/image-20220227110315244-16459310029111.png)
+![image-20220227110315244](assets/image-20220227110315244-16459310029111.png)
 
 
 
@@ -549,7 +549,7 @@ public class HelloCronSchedulerDemo {
 >
 > Quartz的三个核心概念：调度器，任务，触发器，三者之间的关系是：
 
-![image-20220228230941233](asserts/image-20220228230941233.png)
+![image-20220228230941233](assets/image-20220228230941233.png)
 
 > 大家都知道，一个作业，比较重要的三个要素就是Schduler，JobDetail，Trigger。
 >

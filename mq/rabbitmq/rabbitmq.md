@@ -54,7 +54,7 @@
 
 ### 2.2 名词介绍 
 
-![image-20220329234027960](asserts/image-20220329234027960.png)
+![image-20220329234027960](assets/image-20220329234027960.png)
 
 *   **broker：** RabbitMQ Server即mq服务器
 *   **virtual host：**逻辑上的主机划分，将一台mq服务器逻辑分成多个，以供不同用户或应用使用。
@@ -120,7 +120,7 @@ url：http://localhost:15672
 >   *   使用的是默认交换机，所以queue与exchange不需要绑定
 >   *   一对一关系，一个队列一个消费者
 
-![image-20220329235527818](asserts/image-20220329235527818.png)
+![image-20220329235527818](assets/image-20220329235527818.png)
 
 #### 3.1.1 消息生产者
 
@@ -200,7 +200,7 @@ public class Consumer {
 
 ### 3.2 Work Queues 任务队列
 
-![image-20220403232651876](asserts/image-20220403232651876.png)
+![image-20220403232651876](assets/image-20220403232651876.png)
 
 >   工作队列(又称任务队列)的主要思想是避免立即执行资源密集型任务，即生产者生产的消息消费者可以不必立即消费处理。
 >
@@ -399,7 +399,7 @@ channel.basicConsume(queue,true,new DefaultConsumer(channel){
 
 **确认方法的multiple 参数解释 **
 
-![image-20220330223147751](asserts/image-20220330223147751.png)
+![image-20220330223147751](assets/image-20220330223147751.png)
 
 ```java
 channel.basicAck(deliveryTag, true);
@@ -408,7 +408,7 @@ channel.basicAck(deliveryTag, true);
 *   true：代表批量应答，如：channel 上有传送 tag 的消息 5,6,7,8 当前 tag 是8 那么此时 5-8 的这些还未应答的消息都会被确认收到消息应答。
 *   false：tag是谁就应答谁的，如上只会应答tag = 8的消息。
 
-![image-20220330223357093](asserts/image-20220330223357093.png)
+![image-20220330223357093](assets/image-20220330223357093.png)
 
 #### 3.3.2 消息重新入队
 
@@ -416,7 +416,7 @@ channel.basicAck(deliveryTag, true);
 >
 >   可以存在幂等性问题，即消息重复消费，可使用唯一id等解决，详细看补充知识。
 
-![image-20220330223656225](asserts/image-20220330223656225.png)
+![image-20220330223656225](assets/image-20220330223656225.png)
 
 #### 3.3.3 自动应答
 
@@ -537,7 +537,7 @@ public class Work03 {
 >
 >   MessageProperties.PERSISTENT_TEXT_PLAIN
 
-![](asserts/image-20220330225931172.png)
+![](assets/image-20220330225931172.png)
 
 ### 4.2 队列持久化
 
@@ -648,7 +648,7 @@ public static void publishMessageBatch() throws Exception {
 
 **实现原理：**
 
-![image-20220331232446205](asserts/image-20220331232446205.png)
+![image-20220331232446205](assets/image-20220331232446205.png)
 
 ```java
 public static void publishMessageAsync() throws Exception {
@@ -718,7 +718,7 @@ public static void publishMessageAsync() throws Exception {
 
 #### 确认机制方案
 
-![image-20220402224937457](asserts/image-20220402224937457.png)
+![image-20220402224937457](assets/image-20220402224937457.png)
 
 #### 发布确认 springboot 版本
 
@@ -934,7 +934,7 @@ public class MyCallBack implements
 >
 >   消息能路由发送到队列中其实 是由 routingKey(bindingkey)绑定 key 指定的。
 
-![image-20220331234216908](asserts/image-20220331234216908.png)
+![image-20220331234216908](assets/image-20220331234216908.png)
 
 **交换机类型：**
 
@@ -968,7 +968,7 @@ String queueName = channel.queueDeclare().getQueue();
 >
 >   绑定关系通过routing-key来表明，在声明队列的时候绑定交换机exchange。
 
-![image-20220331235418304](asserts/image-20220331235418304.png)
+![image-20220331235418304](assets/image-20220331235418304.png)
 
 ### 6.3 Direct exchange
 
@@ -976,17 +976,17 @@ String queueName = channel.queueDeclare().getQueue();
 >
 >   如：交换机根据消息的routing-key，把消息路由到自己绑定的特定交换机，也只能路由到一个队列中，是一种完全匹配，如果多个switch和queue的routing-key都一样就会回到fanout模式。
 
-![image-20220331235859632](asserts/image-20220331235859632.png)
+![image-20220331235859632](assets/image-20220331235859632.png)
 
 **多次绑定**
 
-![image-20220401000158572](asserts/image-20220401000158572.png)
+![image-20220401000158572](assets/image-20220401000158572.png)
 
 >    exchange 绑定类型是direct，但是它绑定的多个队列的 key 如果都相同，在这种情况下 direct 和 fanout 有点类似。
 
 **案例代码**
 
-![image-20220401000318321](asserts/image-20220401000318321.png)
+![image-20220401000318321](assets/image-20220401000318321.png)
 
 **消费者1**
 
@@ -1071,7 +1071,7 @@ public class Producer {
 >
 >   swtich和queue任然存在绑定关系。
 
-![image-20220401193457026](asserts/image-20220401193457026.png)
+![image-20220401193457026](assets/image-20220401193457026.png)
 
 **消费者1：**
 
@@ -1166,7 +1166,7 @@ public class EmitLog {
 
 **案例代码：**省略，主要是routing-key
 
-![image-20220401200137233](asserts/image-20220401200137233.png)
+![image-20220401200137233](assets/image-20220401200137233.png)
 
 ```java
 // bindingKey: quick.orange.rabbit,lazy.orange.elephant,quick.orange.foxd。。。
@@ -1181,7 +1181,7 @@ channel.basicPublish(EXCHANGE_NAME,bindingKey, null, message.getBytes("UTF-8"));
 >
 >   备份交换机可以理解为 RabbitMQ 中交换机的“备胎”，当交换机接收到一条不可路由消息时，将会把这条消息转发到备份交换机中，由备份交换机来进行转发和处理，通常备份交换机的类型为 Fanout。
 
-![image-20220403103142485](asserts/image-20220403103142485.png)
+![image-20220403103142485](assets/image-20220403103142485.png)
 
 **修改配置类：**声明确认 Exchange 交换机的备份交换机
 
@@ -1396,7 +1396,7 @@ MQ 消费者的幂等性的解决一般使用全局 ID 或者唯一标识如：u
 
 **控制台添加优先级**
 
-![image-20220403105203073](asserts/image-20220403105203073.png)
+![image-20220403105203073](assets/image-20220403105203073.png)
 
 **队列添加优先级**
 

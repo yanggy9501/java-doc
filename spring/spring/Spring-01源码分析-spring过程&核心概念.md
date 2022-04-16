@@ -80,7 +80,7 @@ userService.test();
 >   9.   初始化-实现InitializingBean接口或者@InitMethod注解：Spring会判断该对象是否实现了InitializingBean接口，springg就会调用当前对象中的afterPropertiesSet()完成初始化；spring也会判断是否有该注解。
 >   6.   初始化后-aop：Spring会判断当前对象需不需要进行AOP，否Bean就创建完了，是则会进行动态代理并生成一个代理对象做为Bean
 
-<img src="asserts/springlife.jpg"/>
+<img src="assets/springlife.jpg"/>
 
 #### 1.2.3 Bean创建之后
 
@@ -463,7 +463,7 @@ scanner.scan("com.pack");
 >
 >   DefaultListableBeanFactory
 
-![image-20220305184307287](asserts/image-20220305184307287.png)
+![image-20220305184307287](assets/image-20220305184307287.png)
 
 ### 3.5 ApplicationContext
 

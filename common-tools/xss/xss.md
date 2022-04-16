@@ -34,7 +34,7 @@ AntiSamy的maven坐标：
 
 注：AntiSamy对“恶意代码”的过滤依赖于策略文件。策略文件规定了AntiSamy对各个标签、属性的处理方法，策略文件定义的严格与否，决定了AntiSamy对XSS漏洞的防御效果。在AntiSamy的jar包中，包含了几个常用的策略文件
 
-![image-20200312094303003](./asserts/image-20200312094303003.png)
+![image-20200312094303003](./assets/image-20200312094303003.png)
 
 第四步：创建User实体类
 

@@ -17,7 +17,7 @@ jmap -histo pid
 jmap -histo pid > ./jmap.txt
 ```
 
-![image-20220405202823183](asserts/image-20220405202823183.png)
+![image-20220405202823183](assets/image-20220405202823183.png)
 
 *   num：序号 
 
@@ -36,7 +36,7 @@ jmap -histo pid > ./jmap.txt
  jmap -heap pid > ./heap.txt
 ```
 
-![image-20220405204342355](asserts/image-20220405204342355.png)
+![image-20220405204342355](assets/image-20220405204342355.png)
 
 ### 1.3 堆内存dump
 
@@ -61,7 +61,7 @@ jmap -histo pid > ./jmap.txt
 jstack -l pid
 ```
 
-![image-20220405210934376](asserts/image-20220405210934376.png)
+![image-20220405210934376](assets/image-20220405210934376.png)
 
 *   "Thread-1" 线程名 
 *   prio=5 优先级=5 
@@ -83,13 +83,13 @@ jstack找出占用cpu最高的线程堆栈信息，可能是死循环。
 top -p pid
 ```
 
-![image-20220405211638086](asserts/image-20220405211638086.png)
+![image-20220405211638086](assets/image-20220405211638086.png)
 
 **2, 按大小H，获取每个线程的情况**
 
 >   top -p pid只显示进程的信息，我们需要获取进程中线程的信息，还需要按H
 
-![image-20220405211842268](asserts/image-20220405211842268.png)
+![image-20220405211842268](assets/image-20220405211842268.png)
 
 **3，找到内存和cpu占用最高的线程tid，比如2267**
 

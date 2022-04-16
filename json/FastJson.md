@@ -62,7 +62,7 @@
 
 
 
-![](./assert/fastjson转换图.png)
+![](./assets/fastjson转换图.png)
 
 > 参与转换的对象主要有五种
 >

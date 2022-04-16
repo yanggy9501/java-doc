@@ -10,7 +10,7 @@
 
 无网关情况下
 
-![image-20211229193913114](asserts/gateway微服务.png)
+![image-20211229193913114](assets/gateway微服务.png)
 
 上面这些问题可以借助**API网关**来解决
 
@@ -373,7 +373,7 @@ public class CheckAuthRoutePredicateFactory extends AbstractRoutePredicateFactor
 
 > Gateway 内置了很多的过滤器工厂，我们通过一些过滤器工厂可以进行一些业务逻辑处理，比如添加剔除响应头，添加去除参数等。
 
-![image-20211230214545910](asserts/filter.png)
+![image-20211230214545910](assets/filter.png)
 
 | 过滤器工厂          | 作用 | 参数 |
 | ------------------- | ---- | ---- |
@@ -514,7 +514,7 @@ filters:
 
 下面式内置的全局过滤器
 
-![image-20211231202826744](asserts/globalfilter.png)
+![image-20211231202826744](assets/globalfilter.png)
 
 ```java
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
@@ -704,4 +704,4 @@ spring:
 
 ## 11，Gateway高可用
 
-![image-20211231215655649](asserts/gateway高可用.png)
+![image-20211231215655649](assets/gateway高可用.png)

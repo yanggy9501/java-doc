@@ -10,7 +10,7 @@
 
 ## 2，SkyWalking 环境部署
 
-<img src="asserts/skywalking环境部署.png" alt="image-20220102103745436" style="zoom:67%;" />
+<img src="assets/skywalking环境部署.png" alt="image-20220102103745436" style="zoom:67%;" />
 
 > **组成：**
 >

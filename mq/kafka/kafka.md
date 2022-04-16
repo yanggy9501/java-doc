@@ -17,11 +17,11 @@ Pub/Sub模式，包含主题（Topic中partition相当队列），发布者（Pu
 
 
 
-![](asserts/9486ad757080281f2dfd24e3d873f271.png)
+![](assets/9486ad757080281f2dfd24e3d873f271.png)
 
 ### 1.2 kafka 框架
 
-![](asserts/ccea365fb6f7b73e9572dec7af7d1992.png)
+![](assets/ccea365fb6f7b73e9572dec7af7d1992.png)
 
 *   Producer ：消息生产者或说发布者，发布消息到topic中（partition中）
 *   Consumer ：消息消费者或是订阅者(应该说是消费者组订阅topic)，消费topic中特定分区消息
@@ -121,7 +121,7 @@ kafka0.9版本之后，**消费者进度放到了kafka中**
 
 ### 1.5 kafka在zk中的节点结构
 
-![](asserts/4778e5ac70a259ca32d2a463373c6eb0.png)
+![](assets/4778e5ac70a259ca32d2a463373c6eb0.png)
 
 ## 2，Kafka集群部署
 
@@ -309,7 +309,7 @@ bin/kafka-console-consumer.sh --new-consumer --bootstrap-server localhost:9092 -
 
 producer就是生产者，是数据的入口。Producer在写入数据的时候**永远的找分区的leader**，不会直接将数据写入follower！
 
-![](asserts/aa15dcc86cd6057bcec0f2a1693e4612.png)
+![](assets/aa15dcc86cd6057bcec0f2a1693e4612.png)
 
 消息写入leader后，follower是主动的去leader进行同步的！producer采用push模式将数据发布到broker，每条消息追加到分区中，顺序写入磁盘，所以同一分区数据是有序的！
 
@@ -360,7 +360,7 @@ topic有多个partition，当producer发布消息时，消息保存到哪个分�
     *   xxx.log（数据文件，根据索引文件的消息偏移量查找消息数据）
 *   这些文件位于一个partition文件夹下，partition文件夹的命名规则为：topic主题名 + 分区序号，如first-0
 
-​		![](asserts/407a1871eef17f7e002148bfc12c3ad8.png)
+​		![](assets/407a1871eef17f7e002148bfc12c3ad8.png)
 
 ### 4.3 副本机制
 
@@ -372,7 +372,7 @@ topic有多个partition，当producer发布消息时，消息保存到哪个分�
 
 follower拉起leader，producer和consumer只与这个leader交互，其它replication作为follower从leader 中复制数据。
 
-![](asserts/a799af3b4ecd271544dfaadfd5ba5c7c.png)
+![](assets/a799af3b4ecd271544dfaadfd5ba5c7c.png)
 
 *   follower唯一任务就是同步leader
 *   leader所在broker宕机后，选举一个follower称为新的leader（依托zookeeper的监控）
@@ -433,13 +433,13 @@ pull模式，如果broker没有数据，消费者会轮询，忙等待数据直�
 >
 >   **ps：**建议消费者组的consumer的数量与partition的数量一致！
 
-![](asserts/0560833a6f6bcd1bc11c3027da459b8e.png)
+![](assets/0560833a6f6bcd1bc11c3027da459b8e.png)
 
 #### 消费消息过程？
 
 假如现在需要查找一个offset为368801的message是什么样的过程呢？
 
-![](asserts/5fc418f3f137bb04f095fbb3b438274e.png)
+![](assets/5fc418f3f137bb04f095fbb3b438274e.png)
 
 1.   先确定的partition（计算要消费哪个partition的数据）
 
@@ -1020,7 +1020,7 @@ properties.put(ProducerConfig.ASKS_CONFIG,"0");
 >   *   每个Partition中的消息都是有序的，消息被不断追加到log上，其中的每一个消息都被赋予了唯一的offset值
 >   *   kafka有自己的分区策略的，如果未指定，就会使用默认的分区策略（即`hash(key) % numPartitions`）
 
-![](asserts/4983bf3a4d8c043a33fe363f7556d2e5.png)
+![](assets/4983bf3a4d8c043a33fe363f7556d2e5.png)
 
 ### 7.1 分区概述
 
@@ -1449,7 +1449,7 @@ try{
 >   *   高容错性
 >   *   高伸缩性
 
-![](asserts/6d601060fc4ff929536c60a98b619afe.png)
+![](assets/6d601060fc4ff929536c60a98b619afe.png)
 
 **ps：**消费者可以通过水平扩展的方式同时读取大量的消息。另外，如果一个消费者失败了，那么其他的group成员会自动负载均衡读取之前失败的消费者读取的分区。
 
@@ -1521,7 +1521,7 @@ public class CommitSynclnRebalance {
 
 三个消费者: C0, C1, C2
 
-![](asserts/20180914091316717.PNG)
+![](assets/20180914091316717.PNG)
 
 ### 10.5 Offset
 
@@ -1730,3 +1730,118 @@ Producer<String, String> producer = new KafkaProducer<>(props);
 ```
 
 ## 11，稳定性
+
+>   kafka的消息传输保障机制非常直观。当producer发送消息时，一旦这条消息被commit，由于副本机制replication的存在，他就不会丢失。但是如果producer发送数据给broker后，遇到的网络问题而造成通信中断，那producer就无法判断该条消息是否已经提交（commit）。虽然Kafka无法确定网络故障期间发生了什么，但是producer可以retry多次，确保消息已经正确传输到broker中，所以目前Kafka实现的是at least once至少一次。
+
+### 11.1 幂等性
+
+**幂等性**：就是对接口的多次调用所产生的结果和调用一次是一致的。生产者在进行重试的时候有可能会重复写入消息，而使用Kafka的幂等性功能就可以避免这种情况。
+
+#### 幂等性条件
+
+*   只能保证 Producer 在单个会话内不丢失不重复，如果 Producer 出现意外挂掉再重启是无法保证幂等性的
+*   幂等性不能跨多个 Topic-Partition，只能保证单个 partition 内的幂等性，当涉及多个 Topic-Partition 时，这中间的状态并没有同步
+
+#### 开启幂等性
+
+Producer 配置 enable.idempotence 为 true 即可。
+
+```java
+Properties props = new Properties();
+props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");
+props.put("acks", "all"); // 当 enable.idempotence 为 true，这里默认为 all
+props.put("bootstrap.servers", "localhost:9092");
+props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+KafkaProducer producer = new KafkaProducer(props);
+producer.send(new ProducerRecord(topic, "test");
+
+```
+
+------------------------------------------------
+### 11.2 事务
+
+>   幂等性并不能跨多个分区运作，而事务可以弥补这个缺憾，事务可以保证对多个分区写入操作的原子性。
+>
+>   为了实现事务，应用程序必须提供唯一的transactionalId，这个参数通过客户端程序来进行设定。
+
+```java
+properties.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionId);
+```
+
+#### 11.2.1 前期准备
+
+事务要求生产者开启幂等性特性，因此通过将transactional.id参数设置为非空从而开启事务特性的同时需要将ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG设置为true（默认值为true），如果显示设置为false，则会抛出异常。
+
+##### API
+
+```java
+//初始化事务，前提是配置了transactionalId
+public void initTransactions()
+//开启事务
+public void beginTransaction()
+//为消费者提供事务内的位移提交操作
+public void sendOffsetsToTransaction(Map<TopicPartition,OffsetAndMetadata> offsets, String consumerGroupId)
+//提交事务
+public void commitTransaction()
+//终止事务，类似于回滚
+public void abortTransaction(
+```
+
+**正常**
+
+```java
+/* * Kafka Producer事务的使用   */
+public class ProducerTransactionSend {
+    public static final String topic = "topic-transaction";
+    public static final String brokerList = "localhost:9092";
+    public static final String transactionId = "transactionId";
+    public static void main(String[] args) {
+        Properties properties = new Properties();
+        properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
+                       StringSerializer.class.getName());
+        properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
+                       StringSerializer.class.getName());
+        properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokerList);
+        properties.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, transactionId);
+        KafkaProducer<String, String> producer = new KafkaProducer<>
+            (properties);
+
+        producer.initTransactions();
+        producer.beginTransaction();
+        try {
+            //处理业务逻辑并创建ProducerRecord
+            ProducerRecord<String, String> record1 = new ProducerRecord<>(topic, "msg1");
+            producer.send(record1);
+            ProducerRecord<String, String> record2 = new ProducerRecord<>(topic, "msg2");
+            producer.send(record2);
+            ProducerRecord<String, String> record3 = new ProducerRecord<>(topic, "msg3");
+            producer.send(record3);
+            //处理一些其它逻辑
+            producer.commitTransaction();
+        } catch (ProducerFencedException e) {
+            producer.abortTransaction();
+        }
+    }
+}
+```
+
+**回滚**
+
+```java
+try {
+    //处理业务逻辑并创建ProducerRecord
+    ProducerRecord<String, String> record1 = new ProducerRecord<>(topic,"msg1");
+    producer.send(record1);
+    //模拟事务回滚案例
+    System.out.println(1/0);
+    ProducerRecord<String, String> record2 = new ProducerRecord<>(topic,"msg2");
+    producer.send(record2);
+    ProducerRecord<String, String> record3 = new ProducerRecord<>(topic, "msg3");
+    producer.send(record3);
+    //处理一些其它逻辑
+    producer.commitTransaction();
+} catch (ProducerFencedException e) {
+    producer.abortTransaction();
+}
+```

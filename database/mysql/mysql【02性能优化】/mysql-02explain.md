@@ -12,7 +12,7 @@
 
 explain 中每个列的信息。
 
-![image-20220312140450063](asserts/image-20220312140450063.png)
+![image-20220312140450063](assets/image-20220312140450063.png)
 
 ### 2.1 id列
 
@@ -51,7 +51,7 @@ set session optimizer_switch='derived_merge=on';
 explain select (select 1 from actor where id = 1) from (select * from film where id = 1) der;
 ```
 
-![image-20220312142230274](asserts/image-20220312142230274.png)
+![image-20220312142230274](assets/image-20220312142230274.png)
 
 ### 2.3 table列
 
@@ -126,7 +126,7 @@ explain select (select 1 from actor where id = 1) from (select * from film where
 
 注意：<font color="red">索引是有序的数据结构</font>
 
-![image-20220313134319222](asserts/image-20220313134319222.png)
+![image-20220313134319222](assets/image-20220313134319222.png)
 
 >   --- 创建联合索引
 >   create index idx_seller_name_sta_addr on tb_seller(name,status,address);
@@ -147,11 +147,11 @@ explain select * from tb_seller where name='小米科技' and status='1' and add
 
 >   联合索引下，要遵守最左前缀法则。即联合索引是有序的多个索引在一起相当于整数的个，百，千位一样，如果位数的顺序乱了或者缺失了是无法比较大小的。仅高位即可判断大小的底位可以缺失，顺序上mysql是存在优化的。
 
-![1556171348995](asserts/1556171348995.png)
+![1556171348995](assets/1556171348995.png)
 
 **违法最左前缀法则 ， 索引失效**
 
-![1556171428140](asserts/1556171428140.png)
+![1556171428140](assets/1556171428140.png)
 
 
 
@@ -161,7 +161,7 @@ explain select * from tb_seller where name='小米科技' and status='1' and add
 >
 >   ​	因此，不在索引列上做任何操作（计算、函数、（自动or手动）类型转换），会导致索引失效而转向全表扫描
 
-![image-20220313140342486](asserts/image-20220313140342486.png)
+![image-20220313140342486](assets/image-20220313140342486.png)
 
 
 
@@ -177,7 +177,7 @@ explain select * from tb_seller where name='小米科技' and status='1' and add
 
 
 
-![image-20220313141228008](asserts/image-20220313141228008.png)
+![image-20220313141228008](assets/image-20220313141228008.png)
 
 ### 3.5 覆盖索引
 

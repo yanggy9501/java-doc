@@ -212,7 +212,7 @@ public class MybatisFactoryBean implements FactoryBean<Object> {
 
 图：
 
-![image-20220320172326059](asserts/image-20220320172326059.png)
+![image-20220320172326059](assets/image-20220320172326059.png)
 
 ## 3，Mybatis后一级缓存失效问题
 

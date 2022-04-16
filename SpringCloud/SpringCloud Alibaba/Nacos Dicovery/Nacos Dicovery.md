@@ -19,13 +19,13 @@
 
 [processON图](https://www.processon.com/diagraming/61b972cb1efad406de41d587)
 
-![image-20211215220411691](asserts/image-20211215220411691.png)
+![image-20211215220411691](assets/image-20211215220411691.png)
 
 ### 2.2 服务调用
 
 > 注册中心存在的情况下，若只简单使用RestTemplate是无法通过服务名进行远程调用的，想要在加@LoadBalanced注解, 加负载均衡器
 
-![image-20211217211905522](asserts/服务调用.png)
+![image-20211217211905522](assets/服务调用.png)
 
 **RestTeamplate**
 
@@ -171,26 +171,26 @@ public class StockApplication {
 > * 实例数：该服务主机的个数，即该服务集群部署时会有多个
 > * 触发保护阈值：是否服务雪崩保护，服务详情介绍
 
-![image-20211216235331782](asserts/配置中心.png)
+![image-20211216235331782](assets/配置中心.png)
 
 服务管理：创建空服务
 
-![image-20211217221424418](asserts/image-20211217221424418.png)
+![image-20211217221424418](assets/image-20211217221424418.png)
 
 > 服务管理：服务详情
 
-![image-20211216235649440](asserts/服务详情.png)
+![image-20211216235649440](assets/服务详情.png)
 
 > * 临时实例：服务是否永久保存，通过spring.cloud.nacos.discovery.ephemeral=bool来设置，若永久保存则即使服务宕机也不会剔除该服务，服务拉取时仍能被拉取
 > * 健康状态：服务健康状态，15s后收不到心跳，将该服务的健康状态为false，20s-30s收在不到心跳，将改服务从服务列表中剔除。健康检查演示(手动停掉服务)
 > * 分组：最进一步的隔离
 > * 保护阈值：是否进行服务雪崩保护，值0-1，即 健康实例 / 总实例数 < 保护阈值 则进行保护。通常不是设置因为该工作交给sentinel来处理。触发了服务将无法访问返回默认结果
 
-![image-20211216235802614](asserts/image-20211216235802614-16396702841421.png)
+![image-20211216235802614](assets/image-20211216235802614-16396702841421.png)
 
 > 服务管理：订阅者列表
 
-![image-20211217230951720](asserts/订阅者列表.png)
+![image-20211217230951720](assets/订阅者列表.png)
 
 ------
 
@@ -198,7 +198,7 @@ public class StockApplication {
 
 > 对Nacos Server进行权限控制
 
-![image-20211217231834284](asserts/权限控制.png)
+![image-20211217231834284](assets/权限控制.png)
 
 
 
@@ -238,11 +238,11 @@ public class StockApplication {
 >
 > Spring Cloud Ribbon是基于Netflix Ribbon实现的一套客服端的负载均衡工具，Ribbon提供了一系列晚上的的配置，如超时，重试等。通过Load Balanced获取服务提供的所有服务实例，Ribbon会自动基于某种规则（轮询，随机）去调用这些服务。Ribbon也可以实现我们自己的负载均衡算法。
 
-<img src="asserts/集中式负载均衡.png" alt="image-20211218171443837" style="zoom:67%;" />
+<img src="assets/集中式负载均衡.png" alt="image-20211218171443837" style="zoom:67%;" />
 
 Ribbon
 
-<img src="asserts/客服端负载均衡.png" alt="image-20211218171859133" style="zoom:67%;" />
+<img src="assets/客服端负载均衡.png" alt="image-20211218171859133" style="zoom:67%;" />
 
 
 
@@ -254,7 +254,7 @@ Ribbon
 > * 地址hash：通过客服端请求的地址的hash值取模运算映射进行服务调度。ip hash
 > * 最小连接数（活跃数小）：根据服务器压力进行分配
 
-![image-20211218181550978](asserts/classUML.png)
+![image-20211218181550978](assets/classUML.png)
 
 > **IRule**
 >

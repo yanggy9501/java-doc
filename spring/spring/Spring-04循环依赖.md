@@ -35,7 +35,7 @@ class B{
 
 **出现循环依赖的原因：**`A创建时--->需要B---->B去创建--->需要A，从而产生了循环`
 
-<img src="asserts/image-20220312103224215.png" alt="image-20220312103224215" style="zoom:50%;" />
+<img src="assets/image-20220312103224215.png" alt="image-20220312103224215" style="zoom:50%;" />
 
 ### 1.2 打破循环依赖
 
@@ -43,7 +43,7 @@ class B{
 >
 >   注意：B在创建的过程中也会把B的早期对象存入缓存中，图中没显示。
 
-<img src="asserts/image-20220312103346347.png" alt="image-20220312103346347" style="zoom: 67%;" />
+<img src="assets/image-20220312103346347.png" alt="image-20220312103346347" style="zoom: 67%;" />
 
 ​		从上面这个分析过程中可以得出，只需要一个缓存就能解决循环依赖了，那么为什么Spring中还需要 singletonFactories呢？原因在于此时存入的A早期对象不一定时最终的，可能存在代理。如下情况：
 

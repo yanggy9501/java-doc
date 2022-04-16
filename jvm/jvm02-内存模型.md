@@ -2,7 +2,7 @@
 
 ## 1，Java内存模型
 
-![](asserts/JVM内存模型.png)
+![](assets/JVM内存模型.png)
 
 *   栈（线程栈）
 
@@ -16,7 +16,7 @@
 
 ### 1.1  JVM内存参数
 
-![](asserts/clipboard.png)
+![](assets/clipboard.png)
 
 *   堆：-Xm？
 *   方法区：-XX:???

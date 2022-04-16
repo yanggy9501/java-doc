@@ -22,7 +22,7 @@
 
 
 
-![image-20211221203238309](asserts/可用性问题.png)
+![image-20211221203238309](assets/可用性问题.png)
 
 
 
@@ -30,13 +30,13 @@
 
 > 在一个高度服务化的系统，我们实现的一个业务逻辑通常会依赖多个服务，如图：
 
-![image-20211221204636397](asserts/服务依赖.png)
+![image-20211221204636397](assets/服务依赖.png)
 
 
 
 **问题**
 
-![image-20211221204752483](asserts/服务雪崩.png)
+![image-20211221204752483](assets/服务雪崩.png)
 
 > **服务雪崩效应：**
 >
@@ -44,7 +44,7 @@
 >
 > **导致服务不可用的原因有很多，如：**
 
-![image-20211221205111028](asserts/不可用原因.png)
+![image-20211221205111028](assets/不可用原因.png)
 
 
 
@@ -60,7 +60,7 @@
 >
 >   QPS（quest per secord): 每秒的请求数
 
-![image-20211221210105956](asserts/服务限流.png)
+![image-20211221210105956](assets/服务限流.png)
 
 > * **线程隔离：**
 >
@@ -68,7 +68,7 @@
 >   >
 >   > 原理：用户的请求将不再直接访问服务，而是通过线程池中的空闲线程来访问服务，如果线程池已经满了，则会进行降级处理，用户的请求不会被阻塞，至少可以看到一个执行结果（如提示信息），而不是无休止的等待或者看到系统崩溃。
 
-![image-20211221211635916](asserts/线程隔离.png)
+![image-20211221211635916](assets/线程隔离.png)
 
 
 
@@ -84,7 +84,7 @@
 > >
 > > `服务熔断（停止访问）`：和这个差不多，当负载过大熔断调用链路。当依赖的服务有大量超时时，在让新的请求去访问这个服务（熔断）根本没有意义，只会无畏的消耗资源，此时熔断服务，没有必要让其他请求去访问这个服务，这个时候就应该使用断路器避免资源浪费(避免级联故障)。
 
-![image-20211221212933795](asserts/服务熔断.png)
+![image-20211221212933795](assets/服务熔断.png)
 
 > **服务降级（弱依赖上使用，降低服务水平，一般设置服务提供方）**
 >
@@ -100,17 +100,17 @@
 
 > Sentinel 分布式流量防卫兵，高可用防护组件
 
-![image-20211221213750360](asserts/sentinel.png)
+![image-20211221213750360](assets/sentinel.png)
 
 
 
 > sentinel 上层先进行流量控制 -> 整形（快速失败，预热，排队，熔断降级等）-> 熔断
 
-![image-20211221214943541](asserts/sentile-iiamge.png)
+![image-20211221214943541](assets/sentile-iiamge.png)
 
 ### 2.2 市面上的防护组件
 
-![image-20211221215210396](asserts/防护组件.png)
+![image-20211221215210396](assets/防护组件.png)
 
 
 
@@ -398,7 +398,7 @@ spring:
 
 > 监控接口的通过的QPS和拒绝的QPS
 
-![image-20211223211350015](asserts/实时监控.png)
+![image-20211223211350015](assets/实时监控.png)
 
 #### **3.2.2 簇点链路：流控**（服务提供端流控）
 
@@ -414,11 +414,11 @@ spring:
 >
 > **流量控制设置在服务提供方，服务被调用，流量都集中在这里**
 
-![image-20211223212517614](asserts/流控场景.png)
+![image-20211223212517614](assets/流控场景.png)
 
 ****
 
-![image-20211223212810213](asserts/场景.png)
+![image-20211223212810213](assets/场景.png)
 
 
 
@@ -430,7 +430,7 @@ spring:
 >
 > 如果需要自定义失败处理或者说异常处理需要@SentinelResource注解，这个注解已经在sentinel代码实现介绍过。如果使用了@SentinelResource资源名需要自己定义，和路径一致可能导致流控失效
 
-![image-20211223214632427](asserts/简单流控.png)
+![image-20211223214632427](assets/简单流控.png)
 
 
 
@@ -440,7 +440,7 @@ spring:
 >
 > 资源名value ：必须给，用"/"标识资源可能使得@SentinelResource不起作用
 
-![image-20211224000559251](asserts/流控设置1.png)
+![image-20211224000559251](assets/流控设置1.png)
 
 ```java
 @RestController
@@ -477,11 +477,11 @@ public class SentinelController {
 
 
 
-![image-20211224212012988](asserts/QPS&Thread.png)
+![image-20211224212012988](assets/QPS&Thread.png)
 
 效果：（）是对/flowThread接口的资源进行并发线程数限流
 
-![image-20211224220511207](asserts/并发线程数流量效果.png)
+![image-20211224220511207](assets/并发线程数流量效果.png)
 
 #### 3.2.2 sentinel统一异常处理
 
@@ -530,13 +530,13 @@ public class MyBlockExceptionHandler implements BlockExceptionHandler {
 >
 > **场景：**资源冲突场景，而且有侧重。如插入数据（下订单）和查询数据（获取商品）是相互影响，希望保证插入数据（下单）的性能，查询受到限流，则在查询资源中设置关联资源插入的流控规则
 
-![image-20211224230836963](asserts/关联模式解读.png)
+![image-20211224230836963](assets/关联模式解读.png)
 
 ##### 3. 链路模式
 
 > 受到影响的是调用链路的入口资源
 
-![image-20211224223848804](asserts/链路模式.png)
+![image-20211224223848804](assets/链路模式.png)
 
 
 
@@ -552,11 +552,11 @@ public class MyBlockExceptionHandler implements BlockExceptionHandler {
 >
 > 
 
-![image-20211224231117052](asserts/调用链路.png)
+![image-20211224231117052](assets/调用链路.png)
 
 设置属性，展开链路, **对test1的进行流控**
 
-![image-20211224233515386](asserts/展开链路.png)
+![image-20211224233515386](assets/展开链路.png)
 
 
 
@@ -607,7 +607,7 @@ public String test2() {
 >
 > **公式**：冷加载因子：codeFactor 默认是3，即请求QPS从 threadhold（阈值）/3开始，经过预热时长允许的QPS逐渐升到QPS阈值。
 
-![image-20211226104835878](asserts/warpup设置.png)
+![image-20211226104835878](assets/warpup设置.png)
 
 
 
@@ -621,11 +621,11 @@ public String test2() {
 >
 > 利用空闲时段
 
-![image-20211226105702665](asserts/排队等待.png)
+![image-20211226105702665](assets/排队等待.png)
 
 超时时间：即空闲时间，低谷水平时间
 
-![image-20211226111154982](asserts/排队失败处理.png)
+![image-20211226111154982](assets/排队失败处理.png)
 
 
 
@@ -659,7 +659,7 @@ public String test2() {
 
 **注意：熔断，需要jmeter模拟，手动请求比较难**
 
-![image-20211226125430528](asserts/慢调用比例.png)
+![image-20211226125430528](assets/慢调用比例.png)
 
 
 
@@ -675,7 +675,7 @@ public String test2() {
 
 ## 4，Sentinel 整合OpenFeign进行降级
 
-![image-20211227202033779](asserts/sentinel&openfeign.png)
+![image-20211227202033779](assets/sentinel&openfeign.png)
 
 > 在远程过程调用时，如果服务提供者发生异常，会把异常结果传播给服务消费者，Sentinel 整合OpenFeign主要做的是当服务提供者发生异常时，调用失败的方法，sentinel主要是做这个。
 
@@ -746,7 +746,7 @@ public class StockFeignServiceFallback implements StockFeignService {
 
 
 
-![image-20211227205920463](asserts/热点参数.png)
+![image-20211227205920463](assets/热点参数.png)
 
 **场景 ：**
 
@@ -757,11 +757,11 @@ public class StockFeignServiceFallback implements StockFeignService {
 
 > 热点参数限流会统计传入的热点参数，并根据配置的限流阈值与模式，对保护热点参数的资源调用进行限流。
 
-![image-20211227211430337](asserts/热点参数限流.png)
+![image-20211227211430337](assets/热点参数限流.png)
 
 **注意：热点参数只能针对@SentinelResource进行限流，对接口限流是没有效果的**
 
-![image-20211227212749001](asserts/参数设置.png)
+![image-20211227212749001](assets/参数设置.png)
 
 > 单机阈值：
 >
@@ -774,4 +774,4 @@ public class StockFeignServiceFallback implements StockFeignService {
 
 ## 6，系统规则
 
-![image-20211227213249617](asserts/系统规则.png)
+![image-20211227213249617](assets/系统规则.png)
