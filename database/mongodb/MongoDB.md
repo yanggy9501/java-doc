@@ -203,14 +203,14 @@ docker run -d --name mongo --p 27017:27017 mongo:5.0.5
 
 ​		集合存在于数据库中，一个库中可以创建多个集合。每个集合`没有固定的结构`，创建集合时不需要创建其结构，这意味着你在对集合可以插入不同格式和类型的数据，但通常情况下我们插入集合的数据都会有一定的关联性。
 
-**文档<Document>**
+**文档**
 
 ​		文档集合中一条条记录，是一组键值对(即 BSON)，不是通常我们所理解 的PDF, word文档。
 
 一个简单的文档例子如下：
 
 ```json
-{"site":"www.baizhiedu.xin", "name":"编程不良人"}
+{"site":"www.xxx.xin", "name":"编程不良人"}
 ```
 
 **_id**
@@ -512,6 +512,19 @@ db.集合名称.update(
    <update更新动作及更新内容>,
    <options更新选项>
 );
+// 案例
+db.restaurant.updateOne(
+    {_id: ObjectId("625b8bdb0dcfe40dd8cc68b4")},
+    {
+        $set: {
+            restaurantName: "lsp专卖店",
+            location: {
+                type: "Point",
+                coordinates: [-73.97, 40.77]
+            }
+        }
+    }
+)
 ```
 
 #### 参数说明
@@ -960,7 +973,7 @@ db.col.find({"tags" : {$type : 'array'}}).pretty();
 
 https://docs.mongodb.com/manual/indexes/
 
-索引通常能够极大的提高查询的效率，如果没有索引，MongoDB在读取数据时必须扫描集合中的每个文件并选取那些符合查询条件的记录。这种扫描全集合的查询效率是非常低的，特别在处理大量的数据时，查询可以要花费几十秒甚至几分钟，这对网站的性能是非常致命的。索引是特殊的数据结构，索引存储在一个易于遍历读取的数据集合中，索引是对数据库表中一列或多列的值进行排序的一种结构。
+索引通常能够极大的提高查询的效率，如果没有索引，MongoDB在读取数据时必须扫描集合中的每个文件并选取那些符合查询条件的记录。这种扫描全集合的查询效率是非常低的，特别在处理大量的数据时，查询可以要花费几十秒甚至几分钟，这对网站的性能是非常致命的。索引是帮助查询并且有序的特殊的数据结构，索引存储在一个易于遍历读取的数据集合中，索引是对数据库表中一列或多列的值进行排序的一种结构。
 
 ### 7.1 原理
 
@@ -970,16 +983,17 @@ https://docs.mongodb.com/manual/indexes/
 
 ### 7.2 索引操作
 
-#### 1.创建索引
+#### 1. 创建索引
 
 ```sql
-> db.集合名称.createIndex(keys, options)
-> db.集合名称.createIndex({"title":1,"description":-1})
+db.集合名称.createIndex(keys, options)
+// 案例
+db.集合名称.createIndex({"title":1,"description":-1})
 ```
 
 `说明: 语法中 Key 值为你要创建的索引字段，1 为指定按升序创建索引，如果你想按降序来创建索引指定为 -1 即可。`
 
-createIndex() 接收可选参数，可选参数列表如下：
+createIndex() **option**参数，可选参数列表如下：
 
 | Parameter            | Type          | Description                                                  |
 | :------------------- | :------------ | :----------------------------------------------------------- |
@@ -993,41 +1007,173 @@ createIndex() 接收可选参数，可选参数列表如下：
 | default_language     | string        | 对于文本索引，该参数决定了停用词及词干和词器的规则的列表。 默认为英语 |
 | language_override    | string        | 对于文本索引，该参数指定了包含在文档中的字段名，语言覆盖默认的language，默认值为 language. |
 
+**案例**
+
+```sh
+// 创建索引，后台执行
+db.values.createIndex(
+    {
+        open:1,
+        close: 1
+    },
+    {
+    	background: true
+    }
+)
+// 创建唯一索引
+db.values.createIndex(
+    {
+        title:1,
+    },
+    {
+    	unique: true
+    }
+)
+```
+
 #### 1、查看集合索引
 
-```sql
-> db.集合名称.getIndexes()
+```js
+// 查看索引信息
+db.集合名称.getIndexes()
+// 查看索引键
+db.集合名称.getIndexKeys()
 ```
 
 #### 2、查看集合索引大小
 
-```sql
-> db.集合名称.totalIndexSize()
+```js
+// 查看索引占用空间
+// is_detail：可选参数,传入除0或false外的任意数据，都会显示该聚合中每个索引的大小及总大小。
+// 如果传入0或false则只显示该集合中所有索引的总大小
+db.集合名称.totalIndexSize()
 ```
 
 #### 3、删除集合所有索引
 
 ```sql
-> db.集合名称.dropIndexes()
+db.集合名称.dropIndexes()
 ```
 
 #### 4、删除集合指定索引
 
 ```sql
-> db.集合名称.dropIndex("索引名称")
+db.集合名称.dropIndex("索引名称")
 ```
 
-### 7.3 复合索引
+### 7.3 索引类型
 
-​	说明: 一个索引的值是由多个 key 进行维护的索引的称之为复合索引
+多种索引类型介绍
+
+****
+
+#### 7.3.1 单键索引
+
+​		在某个特定的字段上建立索引，如mongodb在id上建立了唯一的单键索引，所以经常会使用id来进行查询；在使用字段上进行精准匹配、排序以及范围查询都会使用到索引。
+
+​		如果是数组或内嵌文档又该如何呢？
+
+**对普通属性**
+
+```js
+db.books.createIndex({title: 1})
+```
+
+**对内嵌文档**
+
+```js
+// author: {name: "xxx", age: 19}
+db.books.createIndex(
+	{
+        "author.name": 1
+    }
+)
+```
+
+**对数组|多键索引**
+
+​		在数组的属性上建立索引。针对这个数组的任意值的查询都会定位到这个文档，即多个索引入口或者键值应用同一个文档。
+
+​		**注意**：mongodb并不支持一个复合索引中同时也出现多个数组字段。
+
+```js
+db.集合.createIndex({合单键索引一致})
+```
+
+![image-20220417112533214](assets/image-20220417112533214.png)
+
+#### 7.3.2 复合索引
+
+​		复合索引是多个字段组合而成的索引，其性质合单字段索引类似。单不同的是，复合索引中字段的顺序，字段的升序降序对查询性能都有直接的影响，异常在设计复合索引的时候要考虑不同的场景。
 
 ```sql
-> db.集合名称.createIndex({"title":1,"description":-1})
+db.collection.createIndex({key,....})
+// 如：
+db.books.createIndex({"title":1,"description":-1})
 ```
 
-​	`注意: mongoDB 中复合索引和传统关系型数据库一致都是左前缀原则`![image-20211220122343526](assets/image-20211220122343526.png)
+​	`注意: mongoDB 中复合索引和传统关系型数据库一致都是最左前缀原则`![image-20211220122343526](assets/image-20211220122343526.png)
 
 ![image-20211220122531182](assets/image-20211220122531182.png)
+
+#### 7.3.3 地理空间索引
+
+​		mongodb为地理位置减少提供了非常方便的功能，地理空间索引(2dsphereindex)就是专门用于实现位置检索的一种特殊索引。
+
+**案例**：mongodb如何实现查询附件商家？
+
+```java
+db.restaurant.insert({
+    restaurantId: 0,
+    restaurantName: "lsp专卖店",
+    location: {
+        type: "Point",
+        coordinates: [-73.97, 40.77]
+    }
+})
+```
+
+**创建地理空间索引**
+
+```js
+db.restaurant.createIndex({location: "2dsphere"})
+```
+
+**查询附件10000米商家信息**
+
+```js
+db.restaurant.find(
+	{
+        location: {
+            $near: {
+                $geometry: {
+                    type: "Point",
+                    coordinates: [-73.88, 40.78]
+                },
+                $maxDistance: 10000
+            }
+        }
+    }
+)
+```
+
+*   \$near：查询操作符，用实现附件地位位置查询，返回数组结果或按距离排序
+*   \$geometry：操作符用于指定一个GeoJson格式的地理位置空间对象，type=Point表示地位位置坐标，coordinates则是地理位置的经纬度
+*    \$maxDistance: 限定查询的最多距离，单位米
+
+#### 7.3.4 全文索引
+
+​		mongodb支持全文检索功能，可通过建立文本随意来实现建议的分词检索。
+
+**创建分词索引**
+
+```js
+db.集合.createIndex({field1: "text", ...})
+```
+
+\$text操作符可以在又text index的集合上执行文本检索。\$text将会使用空格合标点符号作为分词符，并且对检索字符串中的所有分词进行一个逻辑是国内的or操作。
+
+**注意**：mongodb的文本索引功能是否受限，不推荐使用。
 
 ## 8，聚合
 
@@ -1379,6 +1525,8 @@ db.order.aggragate([
 ```
 
 ### 8.3 MapReduce
+
+>   MapReduce能实现的功能，都可用聚合管道来完成，并且高版本可能废弃。
 
 ## 9, 整合spring boot
 
@@ -1977,7 +2125,7 @@ public void select() {
 
 
 
-## 副本集<Replica Set>
+## 10，副本集
 
 ### 说明
 
@@ -2040,7 +2188,7 @@ MongoDB 副本集（Replica Set）是有自动故障恢复功能的主从集群�
     > rs.secondaryOk();
     ```
 
-## 分片集群<Sharding Cluster>
+## 11，分片集群
 
 ### 说明
 
