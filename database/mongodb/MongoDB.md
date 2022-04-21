@@ -142,7 +142,7 @@ net:
 **方式一**
 
 ```sh
-.mongod --port=27017 --dbpath=/usr/local/server/mongodb-5.0.4/data/db --shutdown
+./mongod --port=27017 --dbpath=/usr/local/server/mongodb-5.0.4/data/db --shutdown
 ```
 
 **方式二**
@@ -973,13 +973,13 @@ db.col.find({"tags" : {$type : 'array'}}).pretty();
 
 https://docs.mongodb.com/manual/indexes/
 
-索引通常能够极大的提高查询的效率，如果没有索引，MongoDB在读取数据时必须扫描集合中的每个文件并选取那些符合查询条件的记录。这种扫描全集合的查询效率是非常低的，特别在处理大量的数据时，查询可以要花费几十秒甚至几分钟，这对网站的性能是非常致命的。索引是帮助查询并且有序的特殊的数据结构，索引存储在一个易于遍历读取的数据集合中，索引是对数据库表中一列或多列的值进行排序的一种结构。
+​		索引通常能够极大的提高查询的效率，如果没有索引，MongoDB在读取数据时必须扫描集合中的每个文件并选取那些符合查询条件的记录。这种扫描全集合的查询效率是非常低的，特别在处理大量的数据时，查询可以要花费几十秒甚至几分钟，这对网站的性能是非常致命的。索引是帮助查询并且有序的特殊的数据结构，索引存储在一个易于遍历读取的数据集合中，索引是对数据库表中一列或多列的值进行排序的一种结构。
 
 ### 7.1 原理
 
 ![image-20211220093934250](assets/image-20211220093934250.png)
 
-从根本上说，MongoDB中的索引与其他数据库系统中的索引类似。MongoDB在集合层面上定义了索引，并支持对MongoDB集合中的任何字段或文档的子字段进行索引。
+​		从根本上说，MongoDB中的索引与其他数据库系统中的索引类似。MongoDB在集合层面上定义了索引，并支持对MongoDB集合中的任何字段或文档的子字段进行索引。
 
 ### 7.2 索引操作
 
@@ -988,7 +988,7 @@ https://docs.mongodb.com/manual/indexes/
 ```sql
 db.集合名称.createIndex(keys, options)
 // 案例
-db.集合名称.createIndex({"title":1,"description":-1})
+db.book.createIndex({"title":1, "description":-1})
 ```
 
 `说明: 语法中 Key 值为你要创建的索引字段，1 为指定按升序创建索引，如果你想按降序来创建索引指定为 -1 即可。`
@@ -1063,7 +1063,7 @@ db.集合名称.dropIndex("索引名称")
 
 ### 7.3 索引类型
 
-多种索引类型介绍
+索引类型的介绍
 
 ****
 
@@ -1097,7 +1097,7 @@ db.books.createIndex(
 ​		**注意**：mongodb并不支持一个复合索引中同时也出现多个数组字段。
 
 ```js
-db.集合.createIndex({合单键索引一致})
+db.集合.createIndex({和单键索引一致})
 ```
 
 ![image-20220417112533214](assets/image-20220417112533214.png)
@@ -1175,13 +1175,144 @@ db.集合.createIndex({field1: "text", ...})
 
 **注意**：mongodb的文本索引功能是否受限，不推荐使用。
 
+#### 7.3.5 Hash索引
+
+>   不同于传统的B+树索引，Hash索引是在索引字段上进行精确匹配的索引，但是，其不支持范围查询，也不支持多键hash，Hash索引上的入口是均匀分布的，在分配集合中非常有用。
+
+```js
+db.集合.createIndex({
+    field: 'hashed'
+})
+```
+
+#### 7.3.6 通配符索引
+
+mongodb的文档模式是动态变化的（不知道有哪些属性等），而通配符索引可以建立在一些不可预知的字段上，以此实现查询的加速。mongodb引入通配符来支持对未知或任意字段的查询
+
+**准备数据**
+
+```js
+db.products.insert([
+    {
+        "product_name": "spy coat",
+        "product_attributs": {
+            "material": ["tweed", "wool", "leather"],
+            "size": {
+                "length": 72,
+                "units": "inches"
+            }
+        }
+    },
+    {
+        "product_name": "spy pen",
+        "product_attributs": {
+            "color": ["blue", "black"],
+            "secret_feature": {
+                "name": "laser",
+                "power": "10000",
+                "units": "watts"
+            }
+        } 
+    },
+    {
+       "product_name": "spy book"
+    }
+])
+```
+
+**创建通配符索引**
+
+```js
+db.products.createIndex({
+    "prodcut_attributes.$**": 1
+})
+```
+
+
+
+**注意事项**：
+
+*   通配符索引不兼容的索引类型或属性，如：复合索引，地理位置，.....
+*   通配符索引是稀疏索引，不索引空字段。因此，通配符索引不能支持查询字段不存在的文档
+
+### 7.4 索引属性
+
+​		其是针对创建索引的第二个参数而言的。
+
+#### 7.4.1 唯一属性
+
+​		通过建立唯一属性，可以保证集合中文档的指定字段拥有唯一值。
+
+```js
+# 创建唯一索引
+db.books.createIndex(
+    {"titlel": 1},
+    {"unique": true}
+)
+# 复合索引支持唯一性约束, 多个字段的组合是唯一的
+db.books.createIndex(
+    {"titlel": 1, "type": 1},
+    {"unique": true}
+)
+# 多建索引支持唯一性约束，数组中的一项是唯一的
+db.books.createIndex(
+    {"tags": 1},
+    {"unique": true}
+)
+```
+
+*   唯一性索引对应文档中缺失的字段，会使用null值代替，因此不允许存在多个文档缺失索引字段的情况
+*   对于分片的集合，唯一性约束必须匹配分片规则。换句话说，为了保证全局的唯一性，分片键必须作为唯一性的前缀字段
+
+#### 7.4.2 部分索引
+
+​	 	部分索引仅针对满足指定过滤器表达式的文档进行索引。通过在一个集合中为文档的一个子集合建立索引，部分索引具有更低的存储需求和更低的索引创建和维护成本。
+
+​		部分使用提供了稀疏索引功能的超集，应该优先于稀疏索引。
+
+**创建索引**
+
+```sh
+db.restaurants.createIndex(
+	{cuisione: 1, name: 1},
+	{partialFilterExpression: {tating: {$gt: 5}}}
+)
+```
+
+partialFilterExpression 选项接收受控指定过滤条件的文档
+
+*   等值表达式，如：field：value 或者$eq
+*   $exist: true
+*   $gt，.....
+*   $type
+*   顶层的$and
+
+#### 7.4.3 稀疏索引
+
+​		稀疏索引确保索引只包含具有索引字段的文档的条目，索引将跳过没有索引字段的文档。
+
+特性：只对存在字段的文档进行索引（包括字段值为null的文档）
+
+**创建索引**
+
+```js
+db.address.createIndex(
+	{"xxx": 1},
+    {sparse: true}
+)
+```
+
+**注意**：如果稀疏索引会导致查询和排序操作的结果不完整，mongodb将不会使用索引，除非hint（）明确指定索引。
+
+#### 7.4.4 TTL索引
+
 ## 8，聚合
 
-MongoDB 中聚合(aggregate)主要用于处理数据(诸如统计平均值，求和等)，并返回计算后的数据结果。聚会操作的组值来自多个文档，可以对分组数据执行各种操作以返回当结果。集合操作包含：
+MongoDB 中聚合(aggregate)主要用于处理数据(诸如统计平均值，求和等)，并返回计算后的数据结果。聚合操作的结果值来自于多个文档，可以对分组数据执行各种操作以返回当结果。聚合操作包含：
 
-1.   单一作用聚会
+1.   单一作用聚会（很少用）
 2.   聚合管道
-3.   MapReduce
+3.   MapReduce（高版本可能会抛弃，功能太局限）
 
 **常见聚合表达式**：
 
@@ -1195,7 +1326,7 @@ MongoDB 中聚合(aggregate)主要用于处理数据(诸如统计平均值，求
 >   *   db.集合.count()：返回与find集合或视图的查询匹配的文档计数。等同于db.集合.find(query).count()
 >   *   db.集合.distinct()：单个字段去重，基本不用
 >
->   这类单一作用的聚合函数。这些操作都聚合来自当集合的文档（但区分聚合管道和MapReduce的灵活性）。
+>   这类单一作用的聚合函数。这些操作都聚合来自当集合的文档（但缺少像聚合管道和MapReduce的灵活性）。
 
 **案例**： 
 
@@ -1261,7 +1392,7 @@ $projcet 可以灵活控制输出文档的格式，也可以剔除不需要的�
 db.集合.aggregate(
     [
         {
-            $project: {新field名: "旧filed名"},
+            $project: {新field名: "$旧filed名"},
             ...
         }
     ]
@@ -1289,16 +1420,24 @@ db.user.aggregate(
 ]
 ```
 
-##### $match 删选
+##### $match 筛选
 
-$match用于对文档的删选，之后可以在得到的文档子集合上做聚合，\$match可以使用除了地理空间之外的所有常规操作符，在时间应用中尽可能的将\$match放在管道的前面。好处：
+$match用于对文档的筛选，之后可以在得到的文档子集合上做聚合，\$match可以使用除了地理空间之外的所有常规操作符，在实际应用中尽可能的将\$match放在管道的前面。好处：
 
 1.   快速过滤不需要的文档，以减少管道的工作量
-2.   如果在投影和分组之前执行match，查询可以使用索引
+2.   如果在投影和分组之前执行\$match，查询可以使用索引
 
 **ps**: 可以使用query查询条件
 
 ```sh
+db.集合.aggregate(
+    [
+        {
+            $match: query条件
+        }
+    ]
+)
+// 案例
 db.user.aggregate(
     [
         {
@@ -1327,14 +1466,14 @@ db.user.aggregate(
 
 ##### $group 分组
 
- 安装指定的表达式对文档进行分组，并将每个不同分支的文档输出到下一个阶段。输出文档包含一个\_id字段，该字段按key包含不同的组。输出文档还可以包含计算字段，该字段保存由$group的\_id字段分组的以下accumulator表达式的值。\$group 不会输出具体的文档而是统计信息。
+ 按照指定的表达式对文档进行分组，并将每个不同分支（分组）的文档输出到下一个阶段。输出文档包含一个\_id字段，该字段按key包含不同的组。输出文档还可以包含计算字段，该字段保存由$group的\_id字段分组的以下accumulator表达式的值。\$group 不会输出具体的文档而是统计信息。
 
 ```js
-// field是文档字段，accumulator是运算符，expression是表达式，如果使用文档字段则$+字段名
+// field是文档字段，accumulator是运算符，expression是分组表达式（即告诉怎么分组），如果使用文档字段则$+字段名
 {$group: {_id: <expression>, <field>:{<accumulator1>:<expression1>}, ...}}
 ```
 
-*   \_id：该字段必须填，但是，可以指定id值位null来位整个输入计算累计值
+*   \_id：该字段必须填，但是，可以指定id值位null来为整个输入计算累计值（null时整个做一组）
 *   其他有字段：可选，并使用<accumulator>运算符进行计算
 
 **accumulator 运算符**:
@@ -1351,11 +1490,12 @@ db.user.aggregate(
 | \$stdDevPop  | 返回输入值的总体标准偏差                      |            |
 | \$stdDevSamp | 返回输入值的样本标准偏差                      |            |
 
-**ps**：\$group阶段的内存线程位100M。可以设置allowDiskUse选项设置位true以启用\$group操作以写入临时文件。
+**ps**：\$group阶段的内存限制为100M，可以设置allowDiskUse选项设置位true以启用\$group操作以写入临时文件。
 
 **book的数量，收藏总数和平均值**
 
 ```sh
+// 返回时：key就是返回的字段名，如下的：count，pop，avg
 db.books.aggregate([
 	{
 		$group: {
@@ -1419,6 +1559,7 @@ db.books.aggregate([
 ```sh
 db.books.aggregate([
 	{$match: {"author.name": "xxx"}},
+	// 书名的tag标签有多个，将其展开
 	{$unwind: "$tag"}
 ])
 ```
@@ -1470,7 +1611,7 @@ db.集合.aggregate([
 ```sh
 db.集合.aggregate([
 	$lookup: {
-		from : "<collection to join",
+		from : "<collection to join>",
 		localField: "<field from the input document>",
 		foreignField: "<field from the document of the from collection>",
 		as: "<output array field>"
@@ -1483,7 +1624,7 @@ db.集合.aggregate([
 | 属性         | 作用                                                         |
 | ------------ | ------------------------------------------------------------ |
 | from         | 被join的集合                                                 |
-| localField   | 源集合中mathc值，如果输入的集合中，某个文档没有localField这个Field，在处理的过程中会默认为传闻还有localField：null的键值对。 |
+| localField   | 源集合中mathc值，如果输入的集合中，某个文档没有localField这个Field字段，在处理的过程中会默认为是有：<localField：null>的键值对。 |
 | foreignField | 待join集合的match值，如果被join的集合中，某个文档没有foreignField这个Field，在处理的过程中会默认为传闻还有foreignField：null的键值对。 |
 | as           | 为输出文档的新增值名。如果输入的集合以及存值该值，则覆盖掉   |
 
@@ -2330,3 +2471,4 @@ MongoDB 副本集（Replica Set）是有自动故障恢复功能的主从集群�
 	db.runCommand({ shardcollection: "baizhi.emps", key: { _id: "hashed"}})
 ```
 
+ 
