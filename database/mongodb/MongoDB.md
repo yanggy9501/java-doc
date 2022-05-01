@@ -210,7 +210,7 @@ docker run -d --name mongo --p 27017:27017 mongo:5.0.5
 一个简单的文档例子如下：
 
 ```json
-{"site":"www.xxx.xin", "name":"编程不良人"}
+{"site":"www.xxx.xin", "name":"kato"}
 ```
 
 **_id**
@@ -402,7 +402,7 @@ db.dropUser("用户名")
 
 Java客服端只有insert方法
 
-**注意：** mongodb是一个文档型数据库，保存数据bson数据，因此value可以是一个普通类型，也可以是数组或者又是一个bson对象。
+**注意：** mongodb是一个文档型数据库，保存数据bson数据，因此value可以是一个普通类型，也可以是数组或者是一个bson对象。
 
 ##### 单条文档：insertOne 
 
@@ -422,7 +422,7 @@ Java客服端只有insert方法
 db.collection.insertOne(
      <document bson文档>, // {"name": "asunaxx", "age": 21, "sex": "女"}
 	{
-    	writeConcern: <writeConcern bson对象> // { "writeConcern":{"writeConcern": 1}}
+    	writeConcern: <writeConcern bson对象> // {"writeConcern": 1}
     }
 )
 // 复杂一点的案例
@@ -466,7 +466,7 @@ db.collection.insert(
 )
 ```
 
-##### 单条文档：save
+##### ~~单条文档：save~~
 
 如果_id 主键存在则更新数据，如果不存在就插入数据（不推荐使用，更新使用update）。
 
@@ -494,7 +494,7 @@ db.collection.insert(
   }
   ```
 
-`注意:在 mongodb 中每个文档都会有一个_id作为唯一标识,_id默认会自动生成如果手动指定将使用手动指定的值作为_id 的值。`
+`注意:在 mongodb 中每个文档都会有一个_id作为唯一标识，_id默认会自动生成如果手动指定将使用手动指定的值作为_id 的值。`
 
 ### 4.4 查询文档
 
@@ -502,14 +502,22 @@ db.collection.insert(
 
 ### 4.5 更新文档
 
->    可以使用update方法对指定的数据集进行更新，要更新的内容很多，如field的名字，field的value为某值，或者value的值增减，value可能是数组或对象更新又有所不同，因此更新操作有更新动作和更新内容两部分。
+>    ​		可以使用update方法对指定的数据集进行更新，要更新的内容很多，如field的名字，field的value为某值，或者value的值增减，value可能是数组或对象更新又有所不同，因此更新操作有更新动作和更新内容两部分。
+>
+>    **update命令配置选项很多，为了简化使用还可以使用一些快捷命令**：
+>
+>    *   update：更新一条或多条文档，通过multi进行控制
+>
+>    *   updateOne：更新匹配的第一条文档，相当update的multi=false
+>    *   updateMany：更新所有匹配的文档，相当update的multi=true
+>    *   replaceOne：替换单个文档，不存在时不创建，相当update的upsert=false
 
 #### 命令格式
 
 ```sql
 db.集合名称.update(
-   <query 更新条件>,
-   <update更新动作及更新内容>,
+   <query  更新条件>,
+   <update 更新动作及更新内容>,
    <options更新选项>
 );
 // 案例
@@ -529,9 +537,9 @@ db.restaurant.updateOne(
 
 #### 参数说明
 
-- **query** : update的查询条件，即哪些文档集需要更新。
+- **query** : update的查询条件，即哪些文档集可以被更新。
 
-- **update** : update的对象和一些更新操作符等，两者结合使用。
+- **update** : update更新操作及其更新内容，两者结合使用。
 
 - **options**: 描述更新的选项
 
@@ -540,11 +548,7 @@ db.restaurant.updateOne(
     - **multi** : `可选`，默认是false，只更新找到的第一条记录，如果这个参数为true, 就把按条件查出来多条记录全部更新。
     - **writeConcern** :`可选` ，写关注决定一个写操作落到多少个节点才算成功（集群，复制集有管）。
 
-**update命令配置选项很多，为了简化使用还可以使用一些快捷命令**：
 
-*   updateOne：更新匹配的第一条文档，相当update的multi=false
-*   updateMany：更新所有匹配的文档，相当update的multi=true
-*   replaceOne：替换单个文档，不存在时不创建，相当update的upsert=false
 
 #### 更新操作符
 
@@ -560,7 +564,7 @@ db.restaurant.updateOne(
 | $pop      | {$pop: {field: 1}}                          | 删除数组的第一个或最后一个元素                |
 |           |                                             |                                               |
 
-**findAndModify命令**
+**~~findAndModify命令~~**
 
 >   findAndMOdify命令兼容了查询和修改指定单个文档的功能，该命令会返回符合查询条件的文档数据（默认返回旧值），并完成对文档的修改。
 
@@ -608,6 +612,7 @@ db.集合名称.remove(
 **语法格式**
 
 ```js
+db.集合名称.delete(条件)
 // 删除符合条件的第一条文档，相当remove的justOne=true
 db.集合名称.deleteOne(条件)
 // 删除符合条件的多条文档
@@ -618,7 +623,7 @@ db.集合名称.deleteMany()
 
 **ps**：如果希望删除整个集合，则使用drop命令会更加高效
 
-#### 返回被删除文档
+#### ~~返回被删除文档~~
 
 >   如果希望在删除的时候返回被删除的文档，则可以使用findOneAndDelete，还可以安装指定的属性删除找的第一个文档
 
@@ -895,7 +900,7 @@ db.集合名称.find(条件).count();
 
 `类似于 SQL 语句为: 'select count(id) from ....'`
 
-### 5.7去重
+### 5.7 去重
 
 ```sql
 db.集合名称.distinct('字段')
@@ -919,7 +924,7 @@ MongoDB 中可以使用的类型如下表所示：
 > db.col.insert({
     title: 'PHP 教程', 
     description: 'PHP 是一种创建动态交互性站点的强有力的服务器端脚本语言。',
-    by: '编程不良人',
+    by: 'name',
     url: 'http://www.baizhiedu.xin',
     tags: ['php'],
     likes: 200
@@ -928,7 +933,7 @@ MongoDB 中可以使用的类型如下表所示：
 > db.col.insert({
     title: 'Java 教程', 
     description: 'Java 是由Sun Microsystems公司于1995年5月推出的高级程序设计语言。',
-    by: '编程不良人',
+    by: 'name',
     url: 'http://www.baizhiedu.xin',
     tags: ['java'],
     likes: 550
@@ -937,7 +942,7 @@ MongoDB 中可以使用的类型如下表所示：
 > db.col.insert({
     title: 'MongoDB 教程', 
     description: 'MongoDB 是一个 Nosql 数据库',
-    by: '编程不良人',
+    by: 'name',
     url: 'http://www.baizhiedu.xin',
     tags: ['mongodb'],
     likes: 100
@@ -946,7 +951,7 @@ MongoDB 中可以使用的类型如下表所示：
 > db.col.insert({
     title: 2233, 
     description: '2233 是一个 B站的',
-    by: '编程不良人',
+    by: 'name',
     url: 'http://www.baizhiedu.xin',
     tags: ['2233'],
     likes: 100
