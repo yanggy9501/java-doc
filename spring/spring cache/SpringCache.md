@@ -25,7 +25,7 @@
 
 ## 2，基本概念
 
-![image-20210719093205082](.\image\image-20210719093205082.png)
+![image-20210719093205082](image\image-20210719093205082.png)
 
 每个 CacheManager 就是一个缓存组件，CacheManager 下有多个Cache，每个 Cache 就是一个数据的分区，Cache 包含对这些数据的操作。
 
