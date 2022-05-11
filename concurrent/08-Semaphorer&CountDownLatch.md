@@ -4,7 +4,7 @@
 
 >   Semaphore信号量理解为代表资源的变量或者许可证，如果大小为1就可以表示互斥锁，大小为n（n>0）的信号量可以实现限流的功能，它可以实现只能有n个线程同时获取信号量，线程需要持有许可证才能执行。
 
-![](asserts/29929.png)
+![](assets/29929.png)
 
 ## 1，Semaphore 常用方法
 
@@ -259,7 +259,7 @@ private void unparkSuccessor(Node node) {
 }
 ```
 
-![](asserts/30198.png)
+![](assets/30198.png)
 
 # CountDownLatch
 
@@ -267,7 +267,7 @@ private void unparkSuccessor(Node node) {
 >
 >   CountDownLatch使用给定的计数值（count）初始化。await方法会阻塞当前线程直到当前的计数值（count）由于其他线程调用闭锁的countDown方法的调用达到0，count为0之后所有等待的线程都会被释放，并且随后对await方法的调用都会立即返回。这是一个一次性现象 —— count不会被重置。如果你需要一个重置count的版本，那么请考虑使用CyclicBarrier。
 
-![](asserts/30038.png)
+![](assets/30038.png)
 
 ## 1. CountDownLatch方法
 

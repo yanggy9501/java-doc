@@ -2410,7 +2410,7 @@ MongoDB 副本集（Replication Set）是有自动故障恢复功能的主从集
 
 ![](assets/replica-set-trigger-election.bakedsvg.svg)
 
-### 10.2 搭建副本集
+### 10.2 搭建复制集
 
 - **安装 3 个mongodb**
 
@@ -2493,10 +2493,12 @@ MongoDB 副本集（Replication Set）是有自动故障恢复功能的主从集
 
 ### 10.3 **复制集命令**
 
+rs = replication set
+
 | **命令**                           | **描述**                                                 |
 | ---------------------------------- | -------------------------------------------------------- |
 | rs.add()                           | 为复制集新增节点                                         |
-| rs.addArb()                        | 为复制集新增一个 arbiter                                 |
+| rs.addArb()                        | 为复制集新增一个 arbiter 仲裁节点                        |
 | rs.conf()                          | 返回复制集配置信息                                       |
 | rs.freeze()                        | 防止当前节点在一段时间内选举成为主节点                   |
 | rs.help()                          | 返回 replica set 的命令帮助                              |
@@ -2507,8 +2509,36 @@ MongoDB 副本集（Replication Set）是有自动故障恢复功能的主从集
 | rs.remove()                        | 从复制集中移除一个节点                                   |
 | rs.secondaryOk()                   | 为当前的连接设置 从节点可读                              |
 | rs.status()                        | 返回复制集状态信息。                                     |
-| rs.stepDown()                      | 让当前的 primary 变为从节点并触发 election               |
+| rs.stepDown()                      | 让当前的 primary 变为从节点并触发 selection              |
 | rs.syncFrom()                      | 设置复制集节点从哪个节点处同步数据，将会覆盖默认选取逻辑 |
+
+#### 10.3.1 移除复制集节点
+
+**方式1**
+
+```js
+# 1.关闭节点实例
+# 2.连接主节点，执行下面命令
+rs.remove("ip:port")
+```
+
+**方式2**
+
+```js
+# 1.关闭节点实例
+# 2.连接主节点，执行下面命令
+cfg = rs.conf()
+cfg.members.splice(2,1)  #从2开始移除1个元素
+rs.reconfig(cfg)
+```
+
+#### 10.3.2 更改复制集节点
+
+```js
+cfg = rs.conf()
+cfg.members[n].host = "ip:port"
+rs.reconfig(cfg)
+```
 
 ### 10.4 集群之安全认证
 
@@ -2538,7 +2568,7 @@ MongoDB 副本集（Replication Set）是有自动故障恢复功能的主从集
     # mongo.key 采用随机算法生成，用作节点内部通信的密钥文件。
     openssl rand -base64 756 > /data/mongo.key
     # 权限必须是600
-     chmod 600 /data/mongo.key  
+    chmod 600 /data/mongo.key  
     ```
 
 *   **启动 mongod**
@@ -2564,7 +2594,48 @@ spring:
       uri: mongodb://root:123456@hadoop101:27017,hadoop102:27017,hadoop103:27017/test?authSource=admin&replicaSet=rs0
 ```
 
+### 10.6 
 
+#### 10.6.1 复制集成员角色
+
+复制集里面有多个节点，每个节点拥有不同的职责。 了解其角色，需要了解其属性。
+
+```js
+rs.conf()
+```
+
+**priority**
+
+*   0：等于 0 时，表示它不可以被复制集选举为主节点。
+*   其他值：priority 值越高，则被选举为主节点的概率越大。
+
+**vote**
+
+*   0：等于 0 时，不可参加选举投票，此时该节点的 priority 也必须为 0.
+
+****
+
+**成员角色**
+
+*   primary：主节点，接收所有的写请求。一个复制集只能由一个主节点，当主节点宕机时，从节点选举一个新的主节点，原主节点恢复后作为从节点。
+
+*   secondary：从节点，同步主节点数据，同时参与竞争主机节点。
+
+    *   hidden：
+
+        *   false：正常节点的只读节点
+
+        *   true：隐藏节点，对客户端不可见， 可以参与选举，但是 Priority 必须为 0，即不能被提升为主。
+
+*   *   delayed ：延迟节点，必须同时具备隐藏节点和 Priority = 0 的特性
+
+*   arbiter：仲裁节点，只用于参与选举投票，本身不承载任何数据，只作为投票角色。
+
+![](assets/41168)
+
+#### 10.6.1 oplog
+
+>   ​		MongoDB oplog 是 Local 库下的一个集合，用来保存写操作所产生的增量日志（类似于 MySQL 中 的 Binlog）。其是一个 Capped Collection（固定集合）。主节点产生新的 oplog Entry，从节点通过复制 oplog 并应用来保持和主节点的状态一致。
 
 ## 11，分片集群
 

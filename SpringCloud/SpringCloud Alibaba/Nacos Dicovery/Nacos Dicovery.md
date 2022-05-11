@@ -15,7 +15,7 @@
 
 ## 2，Nacos注册中心
 
-### 2.1，注册中心演变及其设计思想
+### 2.1 注册中心演变及其设计思想
 
 [processON图](https://www.processon.com/diagraming/61b972cb1efad406de41d587)
 

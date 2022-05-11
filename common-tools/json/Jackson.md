@@ -167,6 +167,46 @@ public class JsonUtils {
 
 ```
 
+### 2.2 序列化
+
+**提要**
+
+>   *   默认情况下，ObjectMapper 在[序列化]()对象时，将实体所有的字段一 一序列化，无论这些字段是否有值，是否为 null。
+>   *   序列化字段必须提供getter方法，如果对象某个字段没有提供 getter 方法，则该字段不会被序列化
+>   *   Spring Boot Web 组件默认使用 jackson 进行对象的序列化与反序列化。
+>
+>   ****
+>
+>   **Jackson 提供三种不同的方法来操作 JSON**：
+>
+>   1.   流式API - 使用 Stream(流) 的方式对 Json 的每一个组成部分进行最细粒度的控制，JsonParser 读取数据，JsonGenerator 写入数据。
+>
+>   2.   树模型 - 将 JSON 文件在内存里以树的形式表示，通过 JsonNode 处理单个Json节点，类似于 XML 的 DOM 解析器。(常用)
+>
+>   3.   databind 模块 - ObjectMapper 读/写 JSON 是实体类对象序列化与反序列化 json 最方便的方式。（常用）
+
+| 方法                                         | 描述                                                    |
+| -------------------------------------------- | ------------------------------------------------------- |
+| String `writeValueAsString`(Object value)    | 序列化对象为json字符串，若value为null序列化返回也是null |
+| byte[] `writeValueAsBytes`(Object value)     | 将 java 对象序列化为字节数组                            |
+| `writeValue`(File resultFile, Object value)  | 将 java 对象序列化并输出指定文件中                      |
+| `writeValue`(OutputStream out, Object value) | 将 java 对象序列化并输出到指定字节输出流中              |
+| `writeValue`(Writer w, Object value)         | 将 java 对象序列化并输出到指定字符输出流中              |
+|                                              |                                                         |
+
+### 2.3 反序列化
+
+| 方法                                               | 描述                                              |
+| -------------------------------------------------- | ------------------------------------------------- |
+| T `readValue`(String content, Class<T> valueType)  | 将json字符串反序列化为Java对象                    |
+| T `readValue`(byte[] src, Class<T> valueType)      | 将 json 内容的字节数组反序列化为 java 对象        |
+| T `readValue`(File src, Class<T> valueType)        | 将本地 json 内容的文件反序列化为 java 对象        |
+| T `readValue`(InputStream src, Class<T> valueType) | 将 json 内容的字节输入流反序列化为 java 对象      |
+| T `readValue`(Reader src, Class<T> valueType)      | 将 json 内容的字符输入流反序列化为 java 对象      |
+| T `readValue`(URL src, Class<T> valueType)         | 通过网络 url 地址将 json 内容反序列化为 java 对象 |
+
+
+
 ### 2.2 使用注解
 
 | 注解                  | 用法                                                         |

@@ -94,6 +94,11 @@ public class KafkaConsumerListener {
      *     第一个泛型：消息 key 的类型
      *     第二个泛型：消息 value 的类型
      *
+     * 注解@KafkaListener(topics = "test", groupId = "consumer-group01")
+     *      属性：
+     *      topic：消费者消费的主题
+     *      groupId：该消费者所属消费者组（也可以在配置文件中配置）
+     *
      * @param record record 用于获取分区和值等
      * @param ack ack 对象，用于提交ack确认
      * @param topic 主题

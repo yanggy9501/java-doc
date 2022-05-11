@@ -35,7 +35,7 @@ synchronized有同步和互斥的含义，但是两种是有区别的：
 
 #### 2. MESA 管程模型
 
-![](asserts/23757.png)
+![](assets/23757.png)
 
 ​		管程中引入了条件变量的概念，而且每个条件变量都对应有一个等待队列。条件变量和等待队列的作用是解决线程之间的同步问题。
 
@@ -84,7 +84,7 @@ ObjectMonitor() {
     _previous_owner_tid = 0;
 ```
 
-![](asserts/24692.png)
+![](assets/24692.png)
 
 >   在获取锁时，是将当前线程插入到\_cxq的头部，而释放锁时，默认策略（QMode=0）是：
 >
@@ -101,7 +101,7 @@ synchronized加锁加在对象上，对象是如何记录锁状态的？
 >   *   实例数据（Instance Data）: 属性数据，包括父类的属性信息
 >   *   对齐填充（Padding）：存储大小补齐，保证8B的倍数
 
-![](asserts/23870.png)
+![](assets/23870.png)
 
 #### 5. 对象头详解
 
@@ -123,7 +123,7 @@ java的对象头由以下三部分组成：
 >
 >   *   32 位 JVM 的 Mark word 为 32 位，64 位 JVM 为 64 位
 
-![](asserts/24028.png)
+![](assets/24028.png)
 
 *   hash：对象的哈希码
 *   age：对象分代年龄，对象被GC的次数
